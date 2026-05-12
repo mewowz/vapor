@@ -5,5 +5,7 @@ import "errors"
 var (
 	ErrBadMagic					= errors.New("bad magic packet")
 	ErrMalformedPayload			= errors.New("malformed payload")
-	ErrBadChannelEncryptRequest = errors.New("bad channel encrypt request")
+	ErrBadChannelEncryptRequest	= errors.New("bad channel encrypt request")
+	ErrBadChannelEncryptRsult	= errors.New("bad channel encrypt response")
+	ErrInvalidUniverseKey		= errors.New("invalid universe key")
 )
