@@ -1,4 +1,4 @@
-package "vapor"
+package vapor
 
 import (
 	"net"
@@ -8,23 +8,25 @@ import (
 	"bufio"
 	"io"
 	"encoding/binary"
-	"bytes"
+	//"bytes"
 	"crypto/x509"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
 	"math"
+	//"log/slog"
+	"hash/crc32"
 )
 
 
-const magicPacket string = "VT01"
-const channelEncryptRequestMinSize uint = 8
+const MagicPacket uint32 = 0x31305456 // VT01
+const ChannelEncryptRequestMinSize uint = 8
 
-const defaultJobID uint64 = math.MaxUint64
+const DefaultJobID uint64 = math.MaxUint64
 
 type ConnectionState int
 const (
-	Disconnected ConnectionState iota
+	Disconnected ConnectionState = iota
 	Connected
 	Challenged
 	Encrypted
@@ -48,8 +50,8 @@ type SteamConnection struct {
 }
 
 type connectionHeader struct {
-	payloadLen	uint32
-	magic		uint32
+	PayloadLen	uint32
+	Magic		uint32
 }
 
 const msgHdrSize = 20
@@ -62,21 +64,22 @@ type msgHeader struct {
 
 func NewHMACFilter(sessionKey []byte) *HMACFilter {
 	return &HMACFilter{
-		HMACSecret: sessionKey[:16]
-		AESKey:		sessionKey[16:]
+		HMACSecret: sessionKey[:16],
+		AESKey:		sessionKey[16:],
 	}
 }
 
 func (c *SteamConnection) connectToCMServerTCP(cmHost string) (bool, error) {
+	var err error
 	network := "tcp"
 
-	c.conn, err := c.dialer.DialContext(c.connContext, network, cmHost)
+	c.conn, err = c.dialer.DialContext(c.connContext, network, cmHost)
 	if err != nil {
 		return false, err
 	}
 	c.connState = Connected
 
-	c.connReader = bufio.NewReader(conn)
+	c.connReader = bufio.NewReader(c.conn)
 
 	success, err := c.establishEncryptedChannel()
 	if success {
@@ -86,28 +89,30 @@ func (c *SteamConnection) connectToCMServerTCP(cmHost string) (bool, error) {
 	return success, err
 }
 
-func (c *SteamConnection) netLoop() error {
-	for {
-		data, err := c.getPayload()
-		if err != nil {
-			return err
-		}
-	}
-}
+//func (c *SteamConnection) netLoop() error {
+//	for {
+//		data, err := c.getPayload()
+//		if err != nil {
+//			return err
+//		}
+//	}
+//
+//	return nil
+//}
 
 func (c *SteamConnection) getRawPayload() ([]byte, error) {
 	var header connectionHeader
-	err := binary.Read(c.connReader, binary.LittleEndian, &connectionHeader)
+	err := binary.Read(c.connReader, binary.LittleEndian, &header)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if header.magic != magicPacket {
+	if header.Magic != MagicPacket {
 		return nil, ErrBadMagic
 	}
 
-	payload := make([]byte, header.payloadLen)
-	_, err := io.ReadFull(c.connReader, payload)
+	payload := make([]byte, header.PayloadLen)
+	_, err = io.ReadFull(c.connReader, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +121,14 @@ func (c *SteamConnection) getRawPayload() ([]byte, error) {
 
 }
 
-func (c *SteamConnection) getPayload() ([]byte, error) {
+//func (c *SteamConnection) getPayload() ([]byte, error) {
+//}
+
+func (h *msgHeader) Size() uint {
+	return uint(binary.Size(h.EMsg) +
+		binary.Size(h.TargetJobID) +
+		binary.Size(h.SourceJobID) +
+		len(h.Body) )
 }
 
 func (c *SteamConnection) establishEncryptedChannel() (bool, error) {
@@ -136,41 +148,51 @@ func (c *SteamConnection) establishEncryptedChannel() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if len(header) < channelEncryptRequestMinSize {
+	if header.Size() < ChannelEncryptRequestMinSize {
 		return false, ErrBadChannelEncryptRequest
 	}
 	if header.EMsg != 1303 {
 		return false, ErrBadChannelEncryptRequest
 	}
 
-	protocolVersion := binary.LittleEndian.Uint32(header.Body[:4])
+	//protocolVersion := binary.LittleEndian.Uint32(header.Body[:4])
+	_ = binary.LittleEndian.Uint32(header.Body[:4])
 	universe := binary.LittleEndian.Uint32(header.Body[4:8])
 
-	randomChallenge := new([]byte, len(header.Body[8:]))
-	err := binary.Decode(header.Body[8:], binary.LittleEndian, &randomChallenge)
+	randomChallenge := make([]byte, len(header.Body[8:]))
+	_, err = binary.Decode(header.Body[8:], binary.LittleEndian, &randomChallenge)
 	if err != nil {
 		return false, err
 	}
 
+	// These are RSA keys
 	universePubKey, err := getUniversePubKey(universe)
 	if err != nil {
 		return false, err
 	}
+	universePubKeyRSA, ok := universePubKey.(*rsa.PublicKey)
+	if !ok {
+		return false, ErrBadPublicKey
+	}
 
-	tempSessionKey := new([]byte, 32)
-	rand.Read(&tempSessionKey)
+	tempSessionKey := make([]byte, 32)
+	rand.Read(tempSessionKey)
 
 	blob := append(tempSessionKey, randomChallenge...)
-	encryptedBlob, err := rsa.EncryptOAEP(sha1.New(), rand.Read, &universePubKey, blob, nil)
+	rng := rand.Reader
+	encryptedBlob, err := rsa.EncryptOAEP(sha1.New(), rng, universePubKeyRSA, blob, nil)
 	if err != nil {
 		return false, err
 	}
 
 	keyCrc := crc32.ChecksumIEEE(encryptedBlob)
+	keyCrcBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(keyCrcBytes, keyCrc)
 
-	channelEncryptResponseBody := append(encryptedBlob, keyCrc, uint32(0))
-	channelEncryptResponseMsgHeader := msgHeader{1304, deafultJobID, defaultJobID, channelEncryptResponseBody}
-	c.HMACFilter = NewHMACFilter(tempSessionKey)
+	channelEncryptResponseBody := append(encryptedBlob, keyCrcBytes...)
+	binary.LittleEndian.AppendUint32(encryptedBlob, 0)
+	channelEncryptResponseMsgHeader := msgHeader{1304, DefaultJobID, DefaultJobID, channelEncryptResponseBody}
+	c.encFilter = NewHMACFilter(tempSessionKey)
 
 	err = c.sendRawMsgHeader(channelEncryptResponseMsgHeader)
 	if err != nil {
@@ -182,7 +204,7 @@ func (c *SteamConnection) establishEncryptedChannel() (bool, error) {
 		return false, err
 	}
 
-	header, err = parseHeader(payload)
+	header, err = parseMsgHeader(payload)
 	if err != nil {
 		return false, err
 	}
@@ -199,26 +221,25 @@ func (c *SteamConnection) establishEncryptedChannel() (bool, error) {
 }
 
 func (c *SteamConnection) sendRawMsgHeader(header msgHeader) error {
-	payload := make([]byte, 20 + len(header.Payload))
-	binary.LittleEndian.PutUint32(payload[:4], header.EMsg)
+	payload := make([]byte, header.Size())
+	binary.LittleEndian.PutUint32(payload[:4], uint32(header.EMsg))
 	binary.LittleEndian.PutUint64(payload[4:12], header.TargetJobID)
 	binary.LittleEndian.PutUint64(payload[12:20], header.SourceJobID)
-	copy(payload[20:], header.Payload)
+	copy(payload[20:], header.Body)
 
 	err := c.sendRawPayload(payload)
 	return err
 }
 
 func (c *SteamConnection) sendRawPayload(payload []byte) error {
-	var header connectionHeader
 	header := connectionHeader {
-		payloadLen: len(payload),
-		magic: magicPacket,
+		PayloadLen: uint32(len(payload)),
+		Magic: MagicPacket,
 	}
 
 	var data []byte
-	data = binary.LittleEndian.AppendUint32(data, header.payloadLen)
-	data = binary.LittleEndian.AppendUint32(data, header.magic)
+	data = binary.LittleEndian.AppendUint32(data, header.PayloadLen)
+	data = binary.LittleEndian.AppendUint32(data, header.Magic)
 	data = append(data, payload...)
 	_, err := c.conn.Write(data)
 	return err
@@ -232,9 +253,9 @@ func parseMsgHeader(data []byte) (msgHeader, error) {
 	}
 	var header msgHeader
 
-	header.EMsg = binary.LittleEndian.Uint32(data[0:4])
-	header.TargetJobID = binary.LittleEndian.Int64(data[4:12])
-	header.SourceJobID = binary.LittleEndian.Int64(data[12:20])
+	header.EMsg = int32(binary.LittleEndian.Uint32(data[0:4]))
+	header.TargetJobID = binary.LittleEndian.Uint64(data[4:12])
+	header.SourceJobID = binary.LittleEndian.Uint64(data[12:20])
 
 	// Then just read whatever is left into the body, if anything
 	if len(data) > msgHdrSize {
@@ -243,7 +264,7 @@ func parseMsgHeader(data []byte) (msgHeader, error) {
 	return header, nil
 }
 
-func getUniversePubKey(universe uint32) []byte {
+func getUniversePubKey(universe uint32) (any, error) {
 	var universePublicKey = []byte{
 		0x30, 0x81, 0x9D, 0x30, 0x0D, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x01,
         0x05, 0x00, 0x03, 0x81, 0x8B, 0x00, 0x30, 0x81, 0x87, 0x02, 0x81, 0x81, 0x00, 0xDF, 0xEC, 0x1A,
@@ -310,5 +331,5 @@ func getUniversePubKey(universe uint32) []byte {
 		return nil, err
 	}
 
-	return pubKey
+	return pubKey, nil
 }
