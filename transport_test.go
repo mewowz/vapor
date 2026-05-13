@@ -89,17 +89,6 @@ func TestParseMsgHeader(t *testing.T) {
 		data = append(data, Body...)
 		return data
 	}
-	//headersEqual := func(h1, h2 msgHeader) bool {
-	//	var EqualitySum int64
-	//	EqualitySum += int64(h1.EMsg - h2.EMsg)
-	//	EqualitySum += int64(h1.TargetJobID - h2.TargetJobID)
-	//	EqualitySum += int64(h1.SourceJobID - h2.SourceJobID)
-	//	bodyEqual := !bytes.Equal(h1.Body, h2.Body)
-	//	if !bodyEqual {
-	//		EqualitySum = 1
-	//	}
-	//	return EqualitySum == 0
-	//}
 	tests := []struct {
 		input	[]byte
 		want	msgHeader
