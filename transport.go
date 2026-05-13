@@ -54,7 +54,7 @@ type connectionHeader struct {
 	Magic		uint32
 }
 
-const msgHdrSize = 20
+const msgHeaderMinSizeBytes = 20
 type msgHeader struct {
 	EMsg		int32
 	TargetJobID	uint64
@@ -247,8 +247,7 @@ func (c *SteamConnection) sendRawPayload(payload []byte) error {
 
 func parseMsgHeader(data []byte) (msgHeader, error) {
 	// The minimum length of a MsgHdr is 20 bytes
-	// This assumes that the MsgHdr has no body accompanying it
-	if len(data) < msgHdrSize {
+	if len(data) < msgHeaderMinSizeBytes {
 		return msgHeader{}, ErrMalformedPacket
 	}
 	var header msgHeader
@@ -258,8 +257,10 @@ func parseMsgHeader(data []byte) (msgHeader, error) {
 	header.SourceJobID = binary.LittleEndian.Uint64(data[12:20])
 
 	// Then just read whatever is left into the body, if anything
-	if len(data) > msgHdrSize {
-		header.Body = data[msgHdrSize:]
+	if len(data) > msgHeaderMinSizeBytes{
+		header.Body = data[msgHeaderMinSizeBytes:]
+	} else {
+		header.Body = []byte{}
 	}
 	return header, nil
 }
