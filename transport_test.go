@@ -6,6 +6,9 @@ import (
 	"encoding/binary"
 	"bytes"
 	"bufio"
+	"errors"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 
@@ -59,7 +62,7 @@ func TestGetRawPayload(t *testing.T) {
 				got, gotErr, test.want, test.wantErr,
 			)
 		}
-		if test.wantErr != gotErr {
+		if !errors.Is(gotErr, test.wantErr) {
 			t.Errorf(
 				"SteamConnection.getRawPayload() = %v, %v, want %v, %v",
 				got, gotErr, test.want, test.wantErr,
@@ -67,4 +70,70 @@ func TestGetRawPayload(t *testing.T) {
 		}
 	}
 
+}
+
+func TestParseMsgHeader(t *testing.T) {
+	getMockMsgHeader := func(EMsg int32, TargetJobID, SourceJobID uint64, Body []byte) msgHeader {
+		return msgHeader {
+			EMsg,
+			TargetJobID,
+			SourceJobID,
+			Body,
+		}
+	}
+	getMockMsgHeaderPayload := func(EMsg int32, TargetJobID, SourceJobID uint64, Body []byte) []byte {
+		data := []byte{}
+		data = binary.LittleEndian.AppendUint32(data, uint32(EMsg))
+		data = binary.LittleEndian.AppendUint64(data, TargetJobID)
+		data = binary.LittleEndian.AppendUint64(data, SourceJobID)
+		data = append(data, Body...)
+		return data
+	}
+	//headersEqual := func(h1, h2 msgHeader) bool {
+	//	var EqualitySum int64
+	//	EqualitySum += int64(h1.EMsg - h2.EMsg)
+	//	EqualitySum += int64(h1.TargetJobID - h2.TargetJobID)
+	//	EqualitySum += int64(h1.SourceJobID - h2.SourceJobID)
+	//	bodyEqual := !bytes.Equal(h1.Body, h2.Body)
+	//	if !bodyEqual {
+	//		EqualitySum = 1
+	//	}
+	//	return EqualitySum == 0
+	//}
+	tests := []struct {
+		input	[]byte
+		want	msgHeader
+		wantErr	error
+	}{
+		{
+			getMockMsgHeaderPayload(1, 1, 1, []byte{1,1,1}),
+			getMockMsgHeader(1, 1, 1, []byte{1,1,1}),
+			nil,
+		},
+		{
+			getMockMsgHeaderPayload(1, 1, 1, []byte{}),
+			getMockMsgHeader(1, 1, 1, []byte{}),
+			nil,
+		},
+		{
+			[]byte{1, 1},
+			msgHeader{},
+			ErrMalformedPacket,
+		},
+	}
+	for _, test := range tests {
+		got, gotErr := parseMsgHeader(test.input)
+		if !cmp.Equal(got, test.want) {
+			t.Errorf(
+				"parseMsgHeader(%v) = %v, %v, want %v, %v",
+				test.input, got, gotErr, test.want, test.wantErr,
+			)
+		}
+		if !errors.Is(gotErr, test.wantErr) {
+			t.Errorf(
+				"parseMsgHeader(%v) = %v, %v, want %v, %v",
+				test.input, got, gotErr, test.want, test.wantErr,
+			)
+		}
+	}
 }
