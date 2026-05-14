@@ -231,11 +231,15 @@ func (c *SteamConnection) sendRawMsgHeader(header msgHeader) error {
 	return err
 }
 
-func (c *SteamConnection) sendRawPayload(payload []byte) error {
-	header := connectionHeader {
-		PayloadLen: uint32(len(payload)),
-		Magic: MagicPacket,
+func newConnectionHeader(payloadLen uint32) *connectionHeader {
+	return connectionHeader {
+		payloadLen,
+		MagicPacket,
 	}
+}
+
+func (c *SteamConnection) sendRawPayload(payload []byte) error {
+	header := newConnectionHeader(uint32(len(payload)))
 
 	var data []byte
 	data = binary.LittleEndian.AppendUint32(data, header.PayloadLen)
