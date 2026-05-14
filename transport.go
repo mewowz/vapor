@@ -134,9 +134,6 @@ func (h *msgHeader) Size() uint {
 func (c *SteamConnection) establishEncryptedChannel() (bool, error) {
 	// TODO: defer a function for cancelling the connection to properly disconnect
 	// the socket instead of leaving it open
-	defer func() {
-		c.connState = Disconnected
-	}()
 
 	payload, err := c.getRawPayload()
 	if err != nil {
@@ -155,45 +152,11 @@ func (c *SteamConnection) establishEncryptedChannel() (bool, error) {
 		return false, ErrBadChannelEncryptRequest
 	}
 
-	//protocolVersion := binary.LittleEndian.Uint32(header.Body[:4])
-	_ = binary.LittleEndian.Uint32(header.Body[:4])
-	universe := binary.LittleEndian.Uint32(header.Body[4:8])
-
-	randomChallenge := make([]byte, len(header.Body[8:]))
-	_, err = binary.Decode(header.Body[8:], binary.LittleEndian, &randomChallenge)
+	tempSessionKey, channelEncryptResponseMsgHeader, err := newChannelEncryptResponse(header)
 	if err != nil {
 		return false, err
 	}
-
-	// These are RSA keys
-	universePubKey, err := getUniversePubKey(universe)
-	if err != nil {
-		return false, err
-	}
-	universePubKeyRSA, ok := universePubKey.(*rsa.PublicKey)
-	if !ok {
-		return false, ErrBadPublicKey
-	}
-
-	tempSessionKey := make([]byte, 32)
-	rand.Read(tempSessionKey)
-
-	blob := append(tempSessionKey, randomChallenge...)
-	rng := rand.Reader
-	encryptedBlob, err := rsa.EncryptOAEP(sha1.New(), rng, universePubKeyRSA, blob, nil)
-	if err != nil {
-		return false, err
-	}
-
-	keyCrc := crc32.ChecksumIEEE(encryptedBlob)
-	keyCrcBytes := make([]byte, 4)
-	binary.LittleEndian.PutUint32(keyCrcBytes, keyCrc)
-
-	channelEncryptResponseBody := append(encryptedBlob, keyCrcBytes...)
-	binary.LittleEndian.AppendUint32(encryptedBlob, 0)
-	channelEncryptResponseMsgHeader := msgHeader{1304, DefaultJobID, DefaultJobID, channelEncryptResponseBody}
 	c.encFilter = NewHMACFilter(tempSessionKey)
-
 	err = c.sendRawMsgHeader(channelEncryptResponseMsgHeader)
 	if err != nil {
 		return false, err
@@ -218,6 +181,48 @@ func (c *SteamConnection) establishEncryptedChannel() (bool, error) {
 	}
 
 	return true, nil
+}
+
+func newChannelEncryptResponse(incomingHeader msgHeader) ([]byte, *msgHeader, error) {
+	//protocolVersion := binary.LittleEndian.Uint32(incomingHeader.Body[:4])
+	_ = binary.LittleEndian.Uint32(incomingHeader.Body[:4])
+	universe := binary.LittleEndian.Uint32(incomingHeader.Body[4:8])
+
+	randomChallenge := make([]byte, len(incomingHeader.Body[8:]))
+	_, err = binary.Decode(incomingHeader.Body[8:], binary.LittleEndian, &randomChallenge)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// These are RSA keys
+	universePubKey, err := getUniversePubKey(universe)
+	if err != nil {
+		return nil, nil, err
+	}
+	universePubKeyRSA, ok := universePubKey.(*rsa.PublicKey)
+	if !ok {
+		return nil, nil, ErrBadPublicKey
+	}
+
+	tempSessionKey := make([]byte, 32)
+	rand.Read(tempSessionKey)
+
+	blob := append(tempSessionKey, randomChallenge...)
+	rng := rand.Reader
+	encryptedBlob, err := rsa.EncryptOAEP(sha1.New(), rng, universePubKeyRSA, blob, nil)
+	if err != nil {
+		return false, err
+	}
+
+	keyCrc := crc32.ChecksumIEEE(encryptedBlob)
+	keyCrcBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(keyCrcBytes, keyCrc)
+
+	channelEncryptResponseBody := append(encryptedBlob, keyCrcBytes...)
+	binary.LittleEndian.AppendUint32(encryptedBlob, 0)
+	channelEncryptResponseMsgHeader := msgHeader{1304, DefaultJobID, DefaultJobID, channelEncryptResponseBody}
+
+	return tempSessionKey, channelEncryptResponseMsgHeader, nil
 }
 
 func (c *SteamConnection) sendRawMsgHeader(header msgHeader) error {
