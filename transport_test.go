@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"bufio"
 	"errors"
+	"crypto/rand"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -125,4 +126,36 @@ func TestParseMsgHeader(t *testing.T) {
 			)
 		}
 	}
+}
+
+// TestHMACEncryptionAndDecryption will test the round-trip encryption and decryption
+// for an HMAC filter
+func TestHMACEncryptionAndDecryption(t *testing.T) {
+	key := make([]byte, 32)
+	rand.Read(key)
+	filter := NewHMACFilter(key)
+
+	rawMsg := []byte("12345")
+	encMsg, err := filter.EncryptMessage(rawMsg)
+	if err != nil {
+		t.Fatalf(
+			"filter.EncryptMessage(%v) = %v, err = %v, want err = nil",
+			rawMsg, encMsg, err,
+		)
+	}
+	decMsg, err := filter.DecryptMessage(encMsg)
+	if err != nil {
+		t.Fatalf(
+			"filter.DecryptMessage(%v) = %v, err = %v, want err = nil",
+			rawMsg, decMsg, err,
+		)
+	}
+
+	if !bytes.Equal(decMsg, rawMsg) {
+		t.Fatalf(
+			"decMsg = %v != rawMsg = %v, want decMsg == rawMsg",
+			decMsg, rawMsg,
+		)
+	}
+
 }
