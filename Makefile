@@ -12,4 +12,5 @@ proto:
 		--go_opt=Mencrypted_app_ticket.proto=$(REPO)/internal/steamproto \
 		internal/proto/steam/steammessages_base.proto \
 		internal/proto/steam/steammessages_clientserver_login.proto \
-		internal/proto/steam/steammessages_clientserver.proto
+		internal/proto/steam/steammessages_clientserver.proto \
+		internal/proto/steam/encrypted_app_ticket.proto
