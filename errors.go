@@ -10,4 +10,5 @@ var (
 	ErrInvalidUniverseKey		= errors.New("invalid universe key")
 	ErrBadPublicKey				= errors.New("bad public key")
 	ErrMalformedPacket			= errors.New("malformed packet")
+	ErrInvalidIVHash			= errors.New("invalid init vector SHA1 hash")
 )

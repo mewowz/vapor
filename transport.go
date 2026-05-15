@@ -309,16 +309,16 @@ func (filter *HMACFilter) HMACSHA1(HMACInput []byte) []byte {
 	return HMACResult
 }
 
-func (filter *HMACFilter) AESECBEncrypt(vec []byte) ([]byte, error) {
+func (filter *HMACFilter) AESECBEncrypt(vector []byte) ([]byte, error) {
 	// No padding needed because the vec is already 16 bytes
 	block, err := aes.NewCipher(filter.AESKey)
 	if err != nil {
 		return nil, err
 	}
 	mode := ecb.NewECBEncrypter(block)
-	encVec := make([]byte, len(vec))
-	mode.CryptBlocks(encVec, vec)
-	return encVec, nil
+	encVector := make([]byte, len(vector))
+	mode.CryptBlocks(encVector, vector)
+	return encVector, nil
 }
 
 func (filter *HMACFilter) AESCBCEncrypt(msg, initVector []byte) ([]byte, error) {
@@ -331,6 +331,51 @@ func (filter *HMACFilter) AESCBCEncrypt(msg, initVector []byte) ([]byte, error) 
 	mode := cipher.NewCBCEncrypter(block, initVector)
 	mode.CryptBlocks(encMsg, paddedMsg)
 	return encMsg, nil
+}
+
+func (filter *HMACFilter) DecryptMessage(encMsg []byte) ([]byte, error) {
+	encInitVector := encMsg[:16]
+	cipherText := encMsg[16:]
+	initVector, err := filter.AESECBDecrypt(encInitVector)
+	if err != nil {
+		return nil, err
+	}
+	msg, err := filter.AESCBCDecrypt(cipherText, initVector)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate
+	nonce := initVector[13:16]
+	HMACInput := append(nonce, msg...)
+	expected := filter.HMACSHA1(HMACInput)
+	if !bytes.Equal(expected[0:13], initVector[0:13]) {
+		return nil, ErrInvalidIVHash
+	}
+	return msg, nil
+}
+
+func (filter *HMACFilter) AESECBDecrypt(encVector []byte) ([]byte, error) {
+	block, err := aes.NewCipher(filter.AESKey)
+	if err != nil {
+		return nil, err
+	}
+	mode := ecb.NewECBDecrypter(block)
+	vector := make([]byte, len(encVector))
+	mode.CryptBlocks(vector, encVector)
+	return vector, nil
+}
+
+func (filter *HMACFilter) AESCBCDecrypt(cipherText, initVector []byte) ([]byte, error) {
+	block, err := aes.NewCipher(filter.AESKey)
+	if err != nil {
+		return nil, err
+	}
+	msg := make([]byte, len(cipherText))
+	mode := cipher.NewCBCDecrypter(block, initVector)
+	mode.CryptBlocks(msg, cipherText)
+	msg = pkcs7Unpad(msg)
+	return msg, nil
 }
 
 func pkcs7Pad(data []byte, blockSize int) []byte {
