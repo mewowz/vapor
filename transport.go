@@ -63,7 +63,7 @@ type msgHeader struct {
 func NewHMACFilter(sessionKey []byte) *HMACFilter {
 	return &HMACFilter{
 		HMACSecret: sessionKey[:16],
-		AESKey:		sessionKey[16:],
+		AESKey:		sessionKey[:32],
 	}
 }
 
