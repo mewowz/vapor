@@ -1,2 +1,4 @@
+github.com/andreburgaud/crypt2go v1.8.0 h1:J73vGTb1P6XL69SSuumbKs0DWn3ulbl9L92ZXBjw6pc=
+github.com/andreburgaud/crypt2go v1.8.0/go.mod h1:L5nfShQ91W78hOWhUH2tlGRPO+POAPJAF5fKOLB9SXg=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=

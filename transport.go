@@ -14,6 +14,12 @@ import (
 	"crypto/sha1"
 	"math"
 	"hash/crc32"
+	"crypto/aes"
+	"crypto/hmac"
+	"crypto/cipher"
+	"bytes"
+
+	"github.com/andreburgaud/crypt2go/ecb"
 )
 
 
@@ -275,6 +281,67 @@ func parseMsgHeader(data []byte) (msgHeader, error) {
 		header.Body = []byte{}
 	}
 	return header, nil
+}
+
+func (filter *HMACFilter) EncryptMessage(msg []byte) ([]byte, error) {
+	nonce := make([]byte, 3)
+	rand.Read(nonce)
+	HMACInput := append(nonce, msg...)
+	HMACFull := filter.HMACSHA1(HMACInput)
+	initVector := append(HMACFull[:13], nonce...)
+
+	encInitVector, err := filter.AESECBEncrypt(initVector)
+	if err != nil {
+		return nil, err
+	}
+	cipherText, err := filter.AESCBCEncrypt(msg, initVector)
+	if err != nil {
+		return nil, err
+	}
+	output := append(encInitVector, cipherText...)
+	return output, nil
+}
+
+func (filter *HMACFilter) HMACSHA1(HMACInput []byte) []byte {
+	h := hmac.New(sha1.New, filter.HMACSecret)
+	h.Write(HMACInput)
+	HMACResult := h.Sum(nil)
+	return HMACResult
+}
+
+func (filter *HMACFilter) AESECBEncrypt(vec []byte) ([]byte, error) {
+	// No padding needed because the vec is already 16 bytes
+	block, err := aes.NewCipher(filter.AESKey)
+	if err != nil {
+		return nil, err
+	}
+	mode := ecb.NewECBEncrypter(block)
+	encVec := make([]byte, len(vec))
+	mode.CryptBlocks(encVec, vec)
+	return encVec, nil
+}
+
+func (filter *HMACFilter) AESCBCEncrypt(msg, initVector []byte) ([]byte, error) {
+	paddedMsg := pkcs7Pad(msg, aes.BlockSize)
+	block, err := aes.NewCipher(filter.AESKey)
+	if err != nil {
+		return nil, err
+	}
+	encMsg := make([]byte, len(paddedMsg))
+	mode := cipher.NewCBCEncrypter(block, initVector)
+	mode.CryptBlocks(encMsg, paddedMsg)
+	return encMsg, nil
+}
+
+func pkcs7Pad(data []byte, blockSize int) []byte {
+	padding := blockSize - (len(data) % blockSize)
+	pad := bytes.Repeat([]byte{byte(padding)}, padding)
+	return append(data, pad...)
+}
+
+func pkcs7Unpad(data []byte) []byte {
+	padding := int(data[len(data) - 1])
+	return data[:len(data) - padding]
 }
 
 func getUniversePubKey(universe uint32) (any, error) {
