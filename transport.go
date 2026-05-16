@@ -125,7 +125,7 @@ func (c *SteamConnection) connectToCMServerTCP(cmHost string) (bool, error) {
 
 func (c *SteamConnection) sendClientHello() error {
 	clientHello := steamproto.CMsgClientHello{ProtocolVersion: proto.Uint32(CurrentProtocolVersion)}
-	header, err := NewMessageHeaderProtoBuf(EMsgClientHello, &clientHello)
+	header, err := NewMsgHeaderPB(EMsgClientHello, &clientHello)
 	if err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func (c *SteamConnection) sendClientHello() error {
 	return nil
 }
 
-func NewMessageHeaderProtoBuf(EMsg int32, Body proto.Message) (*msgHeaderPB, error) {
+func NewMsgHeaderPB(EMsg int32, Body proto.Message) (*msgHeaderPB, error) {
 	header := steamproto.CMsgProtoBufHeader{}
 	headerBytes, err := proto.Marshal(&header)
 	if err != nil {
