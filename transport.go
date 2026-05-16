@@ -82,7 +82,7 @@ type msgHeader struct {
 	Body        []byte
 }
 
-type msgHeaderProtoBuf struct {
+type msgHeaderPB struct {
 	EMsg      int32
 	HeaderLen uint32
 	Header    steamproto.CMsgProtoBufHeader
@@ -129,7 +129,7 @@ func (c *SteamConnection) sendClientHello() error {
 	if err != nil {
 		return err
 	}
-	headerBytes, err := header.Marshal()
+	headerBytes, err := header.Bytes()
 	if err != nil {
 		return err
 	}
@@ -140,14 +140,14 @@ func (c *SteamConnection) sendClientHello() error {
 	return nil
 }
 
-func NewMessageHeaderProtoBuf(EMsg int32, Body proto.Message) (*msgHeaderProtoBuf, error) {
+func NewMessageHeaderProtoBuf(EMsg int32, Body proto.Message) (*msgHeaderPB, error) {
 	header := steamproto.CMsgProtoBufHeader{}
 	headerBytes, err := proto.Marshal(&header)
 	if err != nil {
 		return nil, err
 	}
 	headerSizeBytes := uint32(len(headerBytes))
-	return &msgHeaderProtoBuf{
+	return &msgHeaderPB{
 		EMsg,
 		headerSizeBytes,
 		header,
@@ -155,8 +155,8 @@ func NewMessageHeaderProtoBuf(EMsg int32, Body proto.Message) (*msgHeaderProtoBu
 	}, nil
 }
 
-// Marshal will return the header in wire-format using Little-Endian encoding
-func (h *msgHeaderProtoBuf) Marshal() ([]byte, error) {
+// Bytes will return the header in wire-format using Little-Endian encoding
+func (h *msgHeaderPB) Bytes() ([]byte, error) {
 	var data []byte
 	data = binary.LittleEndian.AppendUint32(data, uint32(h.EMsg)|0x80000000)
 	data = binary.LittleEndian.AppendUint32(data, h.HeaderLen)
