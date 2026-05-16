@@ -39,7 +39,7 @@ const (
 
 const DefaultJobID uint64 = math.MaxUint64
 
-// This is following SteamKit's MsgClientLogon.CurrentProtocol
+// This is following SteamKit's MsgClientLogon.CurrentProtocol.
 const CurrentProtocolVersion uint32 = 65581
 
 type ConnectionState int
@@ -178,7 +178,9 @@ func NewMsgHeaderPBFromBytes(data []byte) (*msgHeaderPB, error) {
 	}, nil
 }
 
-// Bytes will return the header in wire-format using Little-Endian encoding
+// Bytes will return the header in wire-format using Little-Endian encoding.
+// Bytes will also ensure that the EMsg has the correct bit set to indicate that it is
+// a protobuf message.
 func (h *msgHeaderPB) Bytes() ([]byte, error) {
 	var data []byte
 	data = binary.LittleEndian.AppendUint32(data, uint32(h.EMsg)|0x80000000)
