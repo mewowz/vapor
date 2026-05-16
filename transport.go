@@ -155,6 +155,29 @@ func NewMsgHeaderPB(EMsg int32, Body proto.Message) (*msgHeaderPB, error) {
 	}, nil
 }
 
+// NewMsgHeaderPBFromBytes creates a msgHeaderPB from the wire format and into
+// a usable msgHeaderPB.
+func NewMsgHeaderPBFromBytes(data []byte) (*msgHeaderPB, error) {
+	rawEMsg := binary.LittleEndian.Uint32(data[:4])
+	EMsg := int32(rawEMsg & 0x7FFFFFFF)
+
+	headerSizeBytes := binary.LittleEndian.Uint32(data[4:8])
+	pbHeader := steamproto.CMsgProtoBufHeader{}
+	err := proto.Unmarshal(data[8:8+headerSizeBytes], &pbHeader)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Implement PBFromEMsg
+	pbBody := PBFromEMsg(EMsg, data[8+headerSizeBytes:])
+	return &msgHeaderPB{
+		EMsg,
+		headerSizeBytes,
+		pbHeader,
+		pbBody,
+	}, nil
+}
+
 // Bytes will return the header in wire-format using Little-Endian encoding
 func (h *msgHeaderPB) Bytes() ([]byte, error) {
 	var data []byte
