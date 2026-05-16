@@ -3,9 +3,9 @@
 package vapor
 
 import (
-	"testing"
-	"context"
 	"bufio"
+	"context"
+	"testing"
 )
 
 func TestEstablishEncryptedChannel(t *testing.T) {
@@ -28,7 +28,7 @@ func TestEstablishEncryptedChannel(t *testing.T) {
 
 func TestConnectToCMServerTCP(t *testing.T) {
 	host := "162.254.192.101:27017"
-	steamConn := SteamConnection{ connContext: context.Background() }
+	steamConn := SteamConnection{connContext: context.Background()}
 	//defer steamConn.conn.Close()
 	success, err := steamConn.connectToCMServerTCP(host)
 	if !success {

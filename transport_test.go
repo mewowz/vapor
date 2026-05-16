@@ -1,17 +1,16 @@
 package vapor
 
 import (
-	"testing"
-	"net"
-	"encoding/binary"
-	"bytes"
 	"bufio"
-	"errors"
+	"bytes"
 	"crypto/rand"
+	"encoding/binary"
+	"errors"
+	"net"
+	"testing"
 
 	"github.com/google/go-cmp/cmp"
 )
-
 
 func TestGetRawPayload(t *testing.T) {
 	client, server := net.Pipe()
@@ -23,17 +22,17 @@ func TestGetRawPayload(t *testing.T) {
 	steamConn.connReader = bufio.NewReader(client)
 
 	tests := []struct {
-		srvPayloadLen 	uint32
-		srvMagicPacket 	uint32
-		srvPayload    	[]byte
-		want			[]byte
-		wantErr			error
+		srvPayloadLen  uint32
+		srvMagicPacket uint32
+		srvPayload     []byte
+		want           []byte
+		wantErr        error
 	}{
 		{
 			3,
 			MagicPacket,
-			[]byte{1,2,3},
-			[]byte{1,2,3},
+			[]byte{1, 2, 3},
+			[]byte{1, 2, 3},
 			nil,
 		},
 		{
@@ -75,7 +74,7 @@ func TestGetRawPayload(t *testing.T) {
 
 func TestParseMsgHeader(t *testing.T) {
 	getMockMsgHeader := func(EMsg int32, TargetJobID, SourceJobID uint64, Body []byte) msgHeader {
-		return msgHeader {
+		return msgHeader{
 			EMsg,
 			TargetJobID,
 			SourceJobID,
@@ -91,13 +90,13 @@ func TestParseMsgHeader(t *testing.T) {
 		return data
 	}
 	tests := []struct {
-		input	[]byte
-		want	msgHeader
-		wantErr	error
+		input   []byte
+		want    msgHeader
+		wantErr error
 	}{
 		{
-			getMockMsgHeaderPayload(1, 1, 1, []byte{1,1,1}),
-			getMockMsgHeader(1, 1, 1, []byte{1,1,1}),
+			getMockMsgHeaderPayload(1, 1, 1, []byte{1, 1, 1}),
+			getMockMsgHeader(1, 1, 1, []byte{1, 1, 1}),
 			nil,
 		},
 		{
