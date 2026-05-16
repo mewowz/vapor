@@ -19,14 +19,26 @@ import (
 	"crypto/cipher"
 	"bytes"
 
+	"google.golang.org/protobuf/proto"
 	"github.com/andreburgaud/crypt2go/ecb"
+	"github.com/mewowz/vapor/internal/steamproto"
 )
 
+const (
+	EMsgChannelEncryptRequest 	int32 = 1303
+	EMsgChannelEncryptResponse	int32 = 1304
+	EMsgChannelEncryptResult	int32 = 1305
+
+	EMsgClientHello				int32 = 858
+)
 
 const MagicPacket uint32 = 0x31305456 // VT01
 const ChannelEncryptRequestMinSize uint = 8
 
 const DefaultJobID uint64 = math.MaxUint64
+
+// This is following SteamKit's MsgClientLogon.CurrentProtocol
+const CurrentProtocolVersion uint32 = 65581 
 
 type ConnectionState int
 const (
@@ -66,6 +78,13 @@ type msgHeader struct {
 	Body		[]byte
 }
 
+type msgHeaderProtoBuf struct {
+	EMsg		int32
+	HeaderLen	uint32
+	Header		steamproto.CMsgProtoBufHeader
+	Body		proto.Message
+}
+
 func NewHMACFilter(sessionKey []byte) *HMACFilter {
 	return &HMACFilter{
 		HMACSecret: sessionKey[:16],
@@ -85,12 +104,61 @@ func (c *SteamConnection) connectToCMServerTCP(cmHost string) (bool, error) {
 
 	c.connReader = bufio.NewReader(c.conn)
 
-	success, err := c.establishEncryptedChannel()
-	if success {
+	encryptSuccess, err := c.establishEncryptedChannel()
+	if encryptSuccess {
 		c.connState = Encrypted
+	} else {
+		return false, err
 	}
 
-	return success, err
+	clientHello := steamproto.CMsgClientHello{ ProtocolVersion: proto.Uint32(CurrentProtocolVersion) }
+	header, err := NewMessageHeaderProtoBuf(EMsgClientHello, &clientHello)
+	if err != nil {
+		return false, err
+	}
+	headerBytes, err := header.Marshal()
+	if err != nil {
+		return false, err
+	}
+	err = c.sendPayload(headerBytes)
+	if err != nil {
+		return false, err
+	}
+
+	return true, err
+}
+
+func NewMessageHeaderProtoBuf(EMsg int32, Body proto.Message) (*msgHeaderProtoBuf, error) {
+	header := steamproto.CMsgProtoBufHeader{}
+	headerBytes, err := proto.Marshal(&header)
+	if err != nil {
+		return nil, err
+	}
+	headerSizeBytes := uint32(len(headerBytes))
+	return &msgHeaderProtoBuf{
+		EMsg,
+		headerSizeBytes,
+		header,
+		Body,
+	}, nil
+}
+
+// Marshal will return the header in wire-format using Little-Endian encoding
+func (h *msgHeaderProtoBuf) Marshal() ([]byte, error) {
+	var data []byte
+	data = binary.LittleEndian.AppendUint32(data, uint32(h.EMsg) | 0x80000000)
+	data = binary.LittleEndian.AppendUint32(data, h.HeaderLen)
+	headerBytes, err := proto.Marshal(&h.Header)
+	if err != nil {
+		return nil, err
+	}
+	data = append(data, headerBytes...)
+	bodyBytes, err := proto.Marshal(h.Body)
+	if err != nil {
+		return nil, err
+	}
+	data = append(data, bodyBytes...)
+	return data, nil
 }
 
 //func (c *SteamConnection) netLoop() error {
@@ -125,8 +193,33 @@ func (c *SteamConnection) getRawPayload() ([]byte, error) {
 
 }
 
-//func (c *SteamConnection) getPayload() ([]byte, error) {
-//}
+func (c *SteamConnection) getPayload() ([]byte, error) {
+	rawPayload, err := c.getRawPayload()
+	if err != nil {
+		return nil, err
+	}
+	
+	if c.connState == Encrypted {
+		payload, err := c.encFilter.DecryptMessage(rawPayload)
+		return payload, err
+	} else {
+		return rawPayload, nil
+	}
+}
+
+func (c *SteamConnection) sendPayload(rawPayload []byte) error {
+	if c.connState == Encrypted {
+		payload, err := c.encFilter.EncryptMessage(rawPayload)
+		if err != nil {
+			return err
+		}
+		err = c.sendRawPayload(payload)
+		return err
+	} else {
+		err := c.sendRawPayload(rawPayload)
+		return err
+	}
+}
 
 func (h *msgHeader) Size() uint {
 	return uint(binary.Size(h.EMsg) +
