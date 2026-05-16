@@ -173,17 +173,6 @@ func (h *msgHeaderProtoBuf) Marshal() ([]byte, error) {
 	return data, nil
 }
 
-//func (c *SteamConnection) netLoop() error {
-//	for {
-//		data, err := c.getPayload()
-//		if err != nil {
-//			return err
-//		}
-//	}
-//
-//	return nil
-//}
-
 func (c *SteamConnection) getRawPayload() ([]byte, error) {
 	var header connectionHeader
 	err := binary.Read(c.connReader, binary.LittleEndian, &header)
