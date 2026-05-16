@@ -140,9 +140,9 @@ func (c *SteamConnection) sendClientHello() error {
 	return nil
 }
 
-func NewMsgHeaderPB(EMsg int32, Body proto.Message) (*msgHeaderPB, error) {
-	header := steamproto.CMsgProtoBufHeader{}
-	headerBytes, err := proto.Marshal(&header)
+func NewMsgHeaderPB(EMsg int32, pbBody proto.Message) (*msgHeaderPB, error) {
+	pbHeader := steamproto.CMsgProtoBufHeader{}
+	headerBytes, err := proto.Marshal(&pbHeader)
 	if err != nil {
 		return nil, err
 	}
@@ -150,8 +150,8 @@ func NewMsgHeaderPB(EMsg int32, Body proto.Message) (*msgHeaderPB, error) {
 	return &msgHeaderPB{
 		EMsg,
 		headerSizeBytes,
-		header,
-		Body,
+		pbHeader,
+		pbBody,
 	}, nil
 }
 
