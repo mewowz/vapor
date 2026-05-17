@@ -51,29 +51,29 @@ const (
 	Encrypted
 )
 
+const msgHeaderMinSizeBytes = 20
+
+type SteamConnection struct {
+	connTimeout time.Duration
+	connContext context.Context
+	connState   ConnectionState
+	connReader  *bufio.Reader
+	connCancel  context.CancelFunc
+	conn        net.Conn
+	dialer      net.Dialer
+	encFilter   *HMACFilter
+	writeMut    sync.Mutex
+}
+
 type HMACFilter struct {
 	HMACSecret []byte
 	AESKey     []byte
-}
-
-type SteamConnection struct {
-	connDeadline time.Time
-	connState    ConnectionState
-	connContext  context.Context
-	conn         net.Conn
-	dialer       net.Dialer
-	connReader   *bufio.Reader
-	encFilter    *HMACFilter
-	readMut      sync.Mutex
-	writeMut     sync.Mutex
 }
 
 type connectionHeader struct {
 	PayloadLen uint32
 	Magic      uint32
 }
-
-const msgHeaderMinSizeBytes = 20
 
 type msgHeader struct {
 	EMsg        int32
@@ -87,6 +87,19 @@ type msgHeaderPB struct {
 	HeaderLen uint32
 	Header    steamproto.CMsgProtoBufHeader
 	Body      proto.Message
+}
+
+func NewSteamConnection(noResponseTimeout time.Duration, ctx context.Context) *SteamConnection {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	connContext, connCancel := context.WithTimeout(ctx, noResponseTimeout)
+	return &SteamConnection{
+		connTimeout: noResponseTimeout,
+		connContext: connContext,
+		connCancel:  connCancel,
+		connState:   Disconnected,
+	}
 }
 
 func NewHMACFilter(sessionKey []byte) *HMACFilter {
