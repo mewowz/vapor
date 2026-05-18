@@ -12,10 +12,12 @@ import (
 	"crypto/sha1"
 	"crypto/x509"
 	"encoding/binary"
+	"encoding/json"
 	"hash/crc32"
 	"io"
 	"math"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 
@@ -53,12 +55,12 @@ const (
 
 const msgHeaderMinSizeBytes = 20
 
+const DefaultDialTimeoutSeconds = 10
+
 type SteamConnection struct {
 	connTimeout time.Duration
-	connContext context.Context
 	connState   ConnectionState
 	connReader  *bufio.Reader
-	connCancel  context.CancelFunc
 	conn        net.Conn
 	dialer      net.Dialer
 	encFilter   *HMACFilter
@@ -89,15 +91,23 @@ type msgHeaderPB struct {
 	Body      proto.Message
 }
 
-func NewSteamConnection(noResponseTimeout time.Duration, ctx context.Context) *SteamConnection {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	connContext, connCancel := context.WithTimeout(ctx, noResponseTimeout)
+type serverListResponse struct {
+	Response struct {
+		ServerList []struct {
+			Endpoint       string  `json:"endpoint"`
+			LegacyEndpoint string  `json:"legacy_endpoint"`
+			Type           string  `json:"type"`
+			DC             string  `json:"dc"`
+			Realm          string  `json:"realm"`
+			Load           int     `json:"load"`
+			WTDLoad        float64 `json:"wtd_load"`
+		} `json:"serverlist"`
+	} `json:"response"`
+}
+
+func NewSteamConnection(noResponseTimeout time.Duration) *SteamConnection {
 	return &SteamConnection{
 		connTimeout: noResponseTimeout,
-		connContext: connContext,
-		connCancel:  connCancel,
 		connState:   Disconnected,
 	}
 }
@@ -109,15 +119,79 @@ func NewHMACFilter(sessionKey []byte) *HMACFilter {
 	}
 }
 
-func (c *SteamConnection) connectToCMServerTCP(cmHost string) (bool, error) {
+func (c *SteamConnection) CMConnect(dialTimeout time.Duration) error {
+	if c.connState != Disconnected {
+		return ErrAlreadyConnectedToCM
+	}
+	serverHost, err := getCMServerHost(dialTimeout)
+	if err != nil {
+		return err
+	}
+	err = c.connectToCMServerTCP(serverHost, dialTimeout)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *SteamConnection) resetConnDeadline() {
+	c.conn.SetDeadline(time.Now().Add(c.connTimeout))
+}
+
+func (c *SteamConnection) SetConnTimeout(timeout time.Duration, applyNow bool) {
+	c.connTimeout = timeout
+	if applyNow {
+		c.resetConnDeadline()
+	}
+}
+
+// getCMServerHost will pull from Steam's API for CM servers
+// @ https://api.steampowered.com/ISteamDirectory/GetCMListForConnect/v1
+func getCMServerHost(timeout time.Duration) (string, error) {
+	CMListURL := "https://api.steampowered.com/ISteamDirectory/GetCMListForConnect/v1"
+	client := http.Client{Timeout: timeout}
+
+	resp, err := client.Get(CMListURL)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return "", ErrBadCMServerFetch
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	var result serverListResponse
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		return "", err
+	}
+
+	for _, server := range result.Response.ServerList {
+		if server.Type == "netfilter" {
+			return server.Endpoint, nil
+		}
+	}
+
+	return "", ErrNoCMServerFound
+}
+
+func (c *SteamConnection) connectToCMServerTCP(cmHost string, dialTimeout time.Duration) error {
 	var err error
 	network := "tcp"
 
-	c.conn, err = c.dialer.DialContext(c.connContext, network, cmHost)
+	dialCtx, dialCancel := context.WithTimeout(context.Background(), dialTimeout)
+	defer dialCancel()
+	c.conn, err = c.dialer.DialContext(dialCtx, network, cmHost)
 	if err != nil {
-		return false, err
+		return err
 	}
 	c.connState = Connected
+	c.resetConnDeadline()
 
 	c.connReader = bufio.NewReader(c.conn)
 
@@ -125,15 +199,15 @@ func (c *SteamConnection) connectToCMServerTCP(cmHost string) (bool, error) {
 	if encryptSuccess {
 		c.connState = Encrypted
 	} else {
-		return false, err
+		return err
 	}
 
 	err = c.sendClientHello()
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	return true, err
+	return nil
 }
 
 func (c *SteamConnection) sendClientHello() error {

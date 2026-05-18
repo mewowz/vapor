@@ -12,4 +12,6 @@ var (
 	ErrMalformedPacket          = errors.New("malformed packet")
 	ErrInvalidIVHash            = errors.New("invalid init vector SHA1 hash")
 	ErrAlreadyConnectedToCM     = errors.New("already connected to CM server")
+	ErrBadCMServerFetch         = errors.New("bad status code fetching CM server list")
+	ErrNoCMServerFound          = errors.New("no CM server could be found")
 )
