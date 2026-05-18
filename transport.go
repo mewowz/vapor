@@ -119,6 +119,24 @@ func NewHMACFilter(sessionKey []byte) *HMACFilter {
 	}
 }
 
+func NewPBFromEMsg(EMsg int32, data []byte) (*proto.Message, error) {
+	switch Emsg {
+	case EMsgClientHello:
+		var msg CMsgClientHello
+		err := proto.Unmarshal(data, &msg)
+		return msg, err
+	case EMsgClientLogon:
+		var msg CMsgClientLogon
+		err := proto.Unmarshal(data, &msg)
+		return msg, err
+	case EMsgClientLogonResponse:
+		var msg CMsgClientLogonResponse
+		err := proto.Unmarshal(data, &msg)
+		return msg, err
+	}
+	return nil, ErrNoProtoForEmsg
+}
+
 func (c *SteamConnection) CMConnect(dialTimeout time.Duration) error {
 	if c.connState != Disconnected {
 		return ErrAlreadyConnectedToCM
@@ -255,8 +273,10 @@ func NewMsgHeaderPBFromBytes(data []byte) (*msgHeaderPB, error) {
 		return nil, err
 	}
 
-	// TODO: Implement PBFromEMsg
-	pbBody := PBFromEMsg(EMsg, data[8+headerSizeBytes:])
+	pbBody, err := NewPBFromEMsg(EMsg, data[8+headerSizeBytes:])
+	if err != nil {
+		return nil, err
+	}
 	return &msgHeaderPB{
 		EMsg,
 		headerSizeBytes,

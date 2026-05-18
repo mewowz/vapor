@@ -14,4 +14,5 @@ var (
 	ErrAlreadyConnectedToCM     = errors.New("already connected to CM server")
 	ErrBadCMServerFetch         = errors.New("bad status code fetching CM server list")
 	ErrNoCMServerFound          = errors.New("no CM server could be found")
+	ErrNoProtoForEMsg			= errors.New("No matching protobuf type for given EMsg")
 )
