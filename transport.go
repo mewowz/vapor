@@ -10,8 +10,10 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"hash/crc32"
 	"io"
@@ -58,13 +60,16 @@ const msgHeaderMinSizeBytes = 20
 const DefaultDialTimeoutSeconds = 10
 
 type SteamConnection struct {
-	connTimeout time.Duration
-	connState   ConnectionState
-	connReader  *bufio.Reader
-	conn        net.Conn
-	dialer      net.Dialer
-	encFilter   *HMACFilter
-	writeMut    sync.Mutex
+	connTimeout     time.Duration
+	connState       ConnectionState
+	connReader      *bufio.Reader
+	conn            net.Conn
+	dialer          net.Dialer
+	encFilter       *HMACFilter
+	writeMut        sync.Mutex
+	clientCMSubmits chan ClientCMSubmission
+	clientCMReturns [string]ClientCMSubmission
+	clientCMToPurge [string]ClientCMSubmission
 }
 
 type HMACFilter struct {
@@ -82,6 +87,12 @@ type msgHeader struct {
 	TargetJobID uint64
 	SourceJobID uint64
 	Body        []byte
+}
+
+type ClientCMSubmission struct {
+	jobKey     string
+	data       []byte
+	returnChan chan []byte
 }
 
 type msgHeaderPB struct {
@@ -151,6 +162,23 @@ func (c *SteamConnection) CMConnect(dialTimeout time.Duration) error {
 	}
 
 	return nil
+}
+
+func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, error) {
+	randJobKey := rand.Text()
+	returnChan := make(chan []byte)
+	submission := ClientCMSubmission{
+		jobKey:     randJobKey,
+		returnChan: returnChan,
+	}
+	copy(submission.data, data)
+
+	if _, jobIDExists := c.ClientCMReturns; jobIDExists {
+		return nil, ErrJobIDExists
+	}
+	c.ClientCMReturns[randJobKey] = submission
+	c.ClientCMSubmits <- submission
+	return returnChan, nil
 }
 
 func (c *SteamConnection) resetConnDeadline() {
