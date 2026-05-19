@@ -58,6 +58,7 @@ const (
 const msgHeaderMinSizeBytes = 20
 
 const DefaultDialTimeoutSeconds = 10
+const DefaultCMSubmissionTimeout = 10
 
 type SteamConnection struct {
 	connTimeout     time.Duration
@@ -69,7 +70,7 @@ type SteamConnection struct {
 	writeMut        sync.Mutex
 	clientCMSubmits chan ClientCMSubmission
 	clientCMReturns [string]ClientCMSubmission
-	clientCMToPurge [string]ClientCMSubmission
+	clientCMToPurge chan ClientCMSubmission
 }
 
 type HMACFilter struct {
@@ -92,6 +93,7 @@ type msgHeader struct {
 type ClientCMSubmission struct {
 	jobKey     string
 	data       []byte
+	ctx        context.Context
 	returnChan chan []byte
 }
 
@@ -118,8 +120,10 @@ type serverListResponse struct {
 
 func NewSteamConnection(noResponseTimeout time.Duration) *SteamConnection {
 	return &SteamConnection{
-		connTimeout: noResponseTimeout,
-		connState:   Disconnected,
+		connTimeout:     noResponseTimeout,
+		connState:       Disconnected,
+		clientCMSubmits: make(chan ClientCMSubmission, 32),
+		clientCMToPurge: make(chan ClientCMSubmission, 32),
 	}
 }
 
@@ -164,11 +168,12 @@ func (c *SteamConnection) CMConnect(dialTimeout time.Duration) error {
 	return nil
 }
 
-func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, error) {
+func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context, error) {
 	randJobKey := rand.Text()
 	returnChan := make(chan []byte)
 	submission := ClientCMSubmission{
 		jobKey:     randJobKey,
+		ctx:        context.WithDeadline(context.Background(), DefaultCMSubmissionTimeout*time.Second),
 		returnChan: returnChan,
 	}
 	copy(submission.data, data)
