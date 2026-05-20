@@ -165,7 +165,7 @@ func (c *SteamConnection) CMConnect(dialTimeout time.Duration) error {
 }
 
 func (c *SteamConnection) NetLoop() error {
-	if c.connStatus != Encrypted {
+	if c.connState != Encrypted {
 		return ErrConnNotEncrypted
 	}
 
@@ -173,7 +173,7 @@ func (c *SteamConnection) NetLoop() error {
 		// There are heartbeats but I have not read the SteamKit source for heartbeats
 		// nor implemented anything for it just yet
 		select {
-		case clientSubmission := <-c.ClientCMSubmits:
+		case clientSubmission := <-c.clientCMSubmits:
 			err := c.sendPayload(clientSubmission.data)
 			//TODO: handle the various errors this could yield
 			if err != nil {
@@ -183,9 +183,9 @@ func (c *SteamConnection) NetLoop() error {
 			if err != nil {
 				return err
 			}
-			c.returnChan <- data
-			close(c.returnChan)
-		case clientToPurge := <-c.ClientCMToPurge:
+			clientSubmission.returnChan <- data
+			close(clientSubmission.returnChan)
+		case clientToPurge := <-c.clientCMToPurge:
 			select {
 			case _, ok := <-clientToPurge.returnChan:
 				//TODO: warning log that the returnChan had items in its buffer before
