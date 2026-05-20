@@ -213,7 +213,7 @@ func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context
 		<-ctx.Done()
 		ctxCancelF()
 		c.clientCMToPurge <- submission
-	}
+	}()
 	copy(submission.data, data)
 
 	c.ClientCMReturns[randJobKey] = submission
