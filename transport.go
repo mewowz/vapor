@@ -67,7 +67,6 @@ type SteamConnection struct {
 	encFilter       *HMACFilter
 	writeMut        sync.Mutex
 	clientCMSubmits chan ClientCMSubmission
-	clientCMReturns [string]ClientCMSubmission
 	clientCMToPurge chan ClientCMSubmission
 }
 
@@ -89,7 +88,6 @@ type msgHeader struct {
 }
 
 type ClientCMSubmission struct {
-	jobKey     string
 	data       []byte
 	ctx        context.Context
 	returnChan chan []byte
@@ -207,7 +205,6 @@ func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context
 	returnChan := make(chan []byte)
 	ctx, ctxCancelF := context.WithTimeout(context.Background(), DefaultCMSubmissionTimeout*time.Second)
 	submission := ClientCMSubmission{
-		jobKey:     randJobKey,
 		ctx:        ctx,
 		ctxCancelF: ctxCancelF,
 		returnChan: returnChan,
@@ -219,12 +216,9 @@ func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context
 	}
 	copy(submission.data, data)
 
-	if _, jobIDExists := c.ClientCMReturns; jobIDExists {
-		return nil, ErrJobIDExists
-	}
 	c.ClientCMReturns[randJobKey] = submission
 	c.ClientCMSubmits <- submission
-	return returnChan, nil
+	return returnChan, ctx, nil
 }
 
 func (c *SteamConnection) resetConnDeadline() {
