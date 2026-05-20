@@ -31,7 +31,9 @@ const (
 	EMsgChannelEncryptResponse int32 = 1304
 	EMsgChannelEncryptResult   int32 = 1305
 
-	EMsgClientHello int32 = 858
+	EMsgClientHello         int32 = 858
+	EMsgClientLogon         int32 = 716
+	EMsgClientLogonResponse int32 = 751
 )
 
 const (
