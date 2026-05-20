@@ -133,21 +133,21 @@ func NewHMACFilter(sessionKey []byte) *HMACFilter {
 }
 
 func NewPBFromEMsg(EMsg int32, data []byte) (*proto.Message, error) {
-	switch Emsg {
+	switch EMsg {
 	case EMsgClientHello:
-		var msg CMsgClientHello
+		var msg steamproto.CMsgClientHello
 		err := proto.Unmarshal(data, &msg)
 		return msg, err
 	case EMsgClientLogon:
-		var msg CMsgClientLogon
+		var msg steamproto.CMsgClientLogon
 		err := proto.Unmarshal(data, &msg)
 		return msg, err
 	case EMsgClientLogonResponse:
-		var msg CMsgClientLogonResponse
+		var msg steamproto.CMsgClientLogonResponse
 		err := proto.Unmarshal(data, &msg)
 		return msg, err
 	}
-	return nil, ErrNoProtoForEmsg
+	return nil, ErrNoProtoForEMsg
 }
 
 func (c *SteamConnection) CMConnect(dialTimeout time.Duration) error {
