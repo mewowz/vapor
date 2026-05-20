@@ -71,6 +71,7 @@ type SteamConnection struct {
 	clientCMSubmits chan ClientCMSubmission
 	netLoopCtx      context.Context
 	netLoopCancel   context.CancelFunc
+	netLoopMut      sync.RWMutex
 }
 
 type HMACFilter struct {
@@ -175,7 +176,9 @@ func (c *SteamConnection) NetLoop() error {
 	if c.connState != Encrypted {
 		return ErrConnNotEncrypted
 	}
+	c.netLoopMut.Lock()
 	c.netLoopCtx, c.netLoopCancel = context.WithCancel(context.Background())
+	c.netLoopMut.Unlock()
 
 	for {
 		// There are heartbeats but I have not read the SteamKit source for heartbeats
@@ -213,11 +216,14 @@ func (c *SteamConnection) NetLoop() error {
 }
 
 func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context, error) {
+	c.netLoopMut.RLock()
 	select {
 	case <-c.netLoopCtx.Done():
 		return nil, nil, ErrNetLoopNotRunning
 	default:
 	}
+	c.netLoopMut.RUnlock()
+
 	returnChan := make(chan []byte, 1)
 	ctx, ctxCancelF := context.WithTimeout(context.Background(), DefaultCMSubmissionTimeout*time.Second)
 	submission := ClientCMSubmission{
