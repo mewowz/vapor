@@ -90,6 +90,7 @@ type msgHeader struct {
 type ClientCMSubmission struct {
 	data       []byte
 	ctx        context.Context
+	ctxCancelF context.CancelFunc
 	returnChan chan []byte
 }
 
@@ -201,7 +202,6 @@ func (c *SteamConnection) NetLoop() error {
 }
 
 func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context, error) {
-	randJobKey := rand.Text()
 	returnChan := make(chan []byte)
 	ctx, ctxCancelF := context.WithTimeout(context.Background(), DefaultCMSubmissionTimeout*time.Second)
 	submission := ClientCMSubmission{
@@ -214,10 +214,10 @@ func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context
 		ctxCancelF()
 		c.clientCMToPurge <- submission
 	}()
+	submission.data = make([]byte, len(data))
 	copy(submission.data, data)
 
-	c.ClientCMReturns[randJobKey] = submission
-	c.ClientCMSubmits <- submission
+	c.clientCMSubmits <- submission
 	return returnChan, ctx, nil
 }
 
