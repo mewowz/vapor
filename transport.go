@@ -43,7 +43,7 @@ const (
 
 const DefaultJobID uint64 = math.MaxUint64
 
-// This is following SteamKit's MsgClientLogon.CurrentProtocol.
+// CurrentProtocolVersion is following SteamKit's MsgClientLogon.CurrentProtocol.
 const CurrentProtocolVersion uint32 = 65581
 
 type ConnectionState int
@@ -57,8 +57,10 @@ const (
 
 const msgHeaderMinSizeBytes = 20
 
-const DefaultDialTimeoutSeconds = 10
-const DefaultCMSubmissionTimeout = 10
+const (
+	DefaultDialTimeoutSeconds  = 10
+	DefaultCMSubmissionTimeout = 10
+)
 
 type SteamConnection struct {
 	connTimeout     time.Duration
@@ -231,11 +233,6 @@ func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context
 		ctxCancelF: ctxCancelF,
 		returnChan: returnChan,
 	}
-	go func() {
-		<-ctx.Done()
-		ctxCancelF()
-		c.clientCMToPurge <- submission
-	}()
 	submission.data = make([]byte, len(data))
 	copy(submission.data, data)
 
