@@ -16,5 +16,5 @@ var (
 	ErrNoCMServerFound          = errors.New("no CM server could be found")
 	ErrNoProtoForEMsg           = errors.New("no matching protobuf type for given EMsg")
 	ErrConnNotEncrypted         = errors.New("connection is not encrypted")
-	ErrJobIDExists              = errors.New("job ID exists in the returns slice")
+	ErrNetLoopNotRunning		= errors.New("netloop is not running")
 )

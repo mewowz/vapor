@@ -69,7 +69,8 @@ type SteamConnection struct {
 	encFilter       *HMACFilter
 	writeMut        sync.Mutex
 	clientCMSubmits chan ClientCMSubmission
-	clientCMToPurge chan ClientCMSubmission
+	netLoopCtx      context.Context
+	netLoopCancel   context.CancelFunc
 }
 
 type HMACFilter struct {
@@ -118,11 +119,14 @@ type serverListResponse struct {
 }
 
 func NewSteamConnection(noResponseTimeout time.Duration) *SteamConnection {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 	return &SteamConnection{
 		connTimeout:     noResponseTimeout,
 		connState:       Disconnected,
 		clientCMSubmits: make(chan ClientCMSubmission, 32),
-		clientCMToPurge: make(chan ClientCMSubmission, 32),
+		netLoopCtx:      ctx,
+		netLoopCancel:   cancel,
 	}
 }
 
@@ -171,14 +175,22 @@ func (c *SteamConnection) NetLoop() error {
 	if c.connState != Encrypted {
 		return ErrConnNotEncrypted
 	}
+	c.netLoopCtx, c.netLoopCancel = context.WithCancel(context.Background())
 
 	for {
 		// There are heartbeats but I have not read the SteamKit source for heartbeats
 		// nor implemented anything for it just yet
 		select {
 		case clientSubmission := <-c.clientCMSubmits:
+			select {
+			case <-clientSubmission.ctx.Done():
+				// Skip if the client is timed-out or was cancelled
+				continue
+			default:
+			}
+
 			err := c.sendPayload(clientSubmission.data)
-			//TODO: handle the various errors this could yield
+			// TODO: handle the various errors this could yield
 			if err != nil {
 				return err
 			}
@@ -187,24 +199,26 @@ func (c *SteamConnection) NetLoop() error {
 				return err
 			}
 			clientSubmission.returnChan <- data
-			close(clientSubmission.returnChan)
-		case clientToPurge := <-c.clientCMToPurge:
-			select {
-			case _, ok := <-clientToPurge.returnChan:
-				//TODO: warning log that the returnChan had items in its buffer before
-				//we closed the channel
-				if ok {
-					close(clientToPurge.returnChan)
+		case <-c.netLoopCtx.Done():
+			for {
+				select {
+				case client := <-c.clientCMSubmits:
+					client.ctxCancelF()
+				default:
+					return nil
 				}
-			default:
-				close(clientToPurge.returnChan)
 			}
 		}
 	}
 }
 
 func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context, error) {
-	returnChan := make(chan []byte)
+	select {
+	case <-c.netLoopCtx.Done():
+		return nil, nil, ErrNetLoopNotRunning
+	default:
+	}
+	returnChan := make(chan []byte, 1)
 	ctx, ctxCancelF := context.WithTimeout(context.Background(), DefaultCMSubmissionTimeout*time.Second)
 	submission := ClientCMSubmission{
 		ctx:        ctx,
