@@ -97,6 +97,7 @@ type ClientCMSubmission struct {
 	data       []byte
 	ctx        context.Context
 	ctxCancelF context.CancelFunc
+	packetReadAmount int
 	returnChan chan []byte
 }
 
@@ -193,17 +194,19 @@ func (c *SteamConnection) NetLoop() error {
 				continue
 			default:
 			}
-
 			err := c.sendPayload(clientSubmission.data)
 			// TODO: handle the various errors this could yield
 			if err != nil {
 				return err
 			}
-			data, err := c.getPayload()
-			if err != nil {
-				return err
+
+			for _ = range clientSubmission.packetReadAmount {
+				data, err := c.getPayload()
+				if err != nil {
+					return err
+				}
+				clientSubmission.returnChan <- data
 			}
-			clientSubmission.returnChan <- data
 		case <-c.netLoopCtx.Done():
 			for {
 				select {
@@ -217,7 +220,7 @@ func (c *SteamConnection) NetLoop() error {
 	}
 }
 
-func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context, error) {
+func (c *SteamConnection) SubmitCMMsg(data []byte, packetReadAmount int) (chan []byte, context.Context, error) {
 	c.netLoopMut.RLock()
 	select {
 	case <-c.netLoopCtx.Done():
@@ -226,11 +229,12 @@ func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context
 	}
 	c.netLoopMut.RUnlock()
 
-	returnChan := make(chan []byte, 1)
+	returnChan := make(chan []byte, packetReadAmount)
 	ctx, ctxCancelF := context.WithTimeout(context.Background(), DefaultCMSubmissionTimeout*time.Second)
 	submission := ClientCMSubmission{
 		ctx:        ctx,
 		ctxCancelF: ctxCancelF,
+		packetReadAmount: packetReadAmount,
 		returnChan: returnChan,
 	}
 	submission.data = make([]byte, len(data))
