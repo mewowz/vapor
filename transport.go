@@ -131,20 +131,20 @@ func NewHMACFilter(sessionKey []byte) *HMACFilter {
 	}
 }
 
-func NewPBFromEMsg(EMsg int32, data []byte) (*proto.Message, error) {
+func NewPBFromEMsg(EMsg int32, data []byte) (proto.Message, error) {
 	switch EMsg {
 	case EMsgClientHello:
 		var msg steamproto.CMsgClientHello
 		err := proto.Unmarshal(data, &msg)
-		return msg, err
+		return &msg, err
 	case EMsgClientLogon:
 		var msg steamproto.CMsgClientLogon
 		err := proto.Unmarshal(data, &msg)
-		return msg, err
+		return &msg, err
 	case EMsgClientLogonResponse:
 		var msg steamproto.CMsgClientLogonResponse
 		err := proto.Unmarshal(data, &msg)
-		return msg, err
+		return &msg, err
 	}
 	return nil, ErrNoProtoForEMsg
 }
