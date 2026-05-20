@@ -10,10 +10,8 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
-	"crypto/sha256"
 	"crypto/x509"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"hash/crc32"
 	"io"
@@ -168,13 +166,56 @@ func (c *SteamConnection) CMConnect(dialTimeout time.Duration) error {
 	return nil
 }
 
+func (c *SteamConnection) NetLoop() error {
+	if c.connStatus != Encrypted {
+		return ErrConnNotEncrypted
+	}
+
+	for {
+		// There are heartbeats but I have not read the SteamKit source for heartbeats
+		// nor implemented anything for it just yet
+		select {
+		case clientSubmission := <-c.ClientCMSubmits:
+			err := c.sendPayload(clientSubmission.data)
+			//TODO: handle the various errors this could yield
+			if err != nil {
+				return err
+			}
+			data, err := c.getPayload()
+			if err != nil {
+				return err
+			}
+			c.returnChan <- data
+			close(c.returnChan)
+		case clientToPurge := <-c.ClientCMToPurge:
+			select {
+			case _, ok := <-clientToPurge.returnChan:
+				//TODO: warning log that the returnChan had items in its buffer before
+				//we closed the channel
+				if ok {
+					close(clientToPurge.returnChan)
+				}
+			default:
+				close(clientToPurge.returnChan)
+			}
+		}
+	}
+}
+
 func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context, error) {
 	randJobKey := rand.Text()
 	returnChan := make(chan []byte)
+	ctx, ctxCancelF := context.WithTimeout(context.Background(), DefaultCMSubmissionTimeout*time.Second)
 	submission := ClientCMSubmission{
 		jobKey:     randJobKey,
-		ctx:        context.WithDeadline(context.Background(), DefaultCMSubmissionTimeout*time.Second),
+		ctx:        ctx,
+		ctxCancelF: ctxCancelF,
 		returnChan: returnChan,
+	}
+	go func() {
+		<-ctx.Done()
+		ctxCancelF()
+		c.clientCMToPurge <- submission
 	}
 	copy(submission.data, data)
 
