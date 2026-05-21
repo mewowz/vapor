@@ -34,6 +34,8 @@ const (
 	EMsgClientHello         int32 = 858
 	EMsgClientLogon         int32 = 716
 	EMsgClientLogonResponse int32 = 751
+
+	EMsgClientLicenseList int32 = 507
 )
 
 const (
@@ -155,6 +157,10 @@ func NewPBFromEMsg(EMsg int32, data []byte) (proto.Message, error) {
 		var msg steamproto.CMsgClientLogonResponse
 		err := proto.Unmarshal(data, &msg)
 		return &msg, err
+	case EMsgClientLicenseList:
+		var msg steamproto.CMsgClientLicenseList
+		err := proto.Unmarshal(data, &msg)
+		return &msg, err
 	}
 	return nil, ErrNoProtoForEMsg
 }
@@ -206,6 +212,8 @@ func (c *SteamConnection) NetLoop() error {
 					return err
 				}
 				clientSubmission.returnChan <- data
+				// TODO: reset the context timeout at the end of this and ensure that
+				// it propagates back to the receiver
 			}
 		case <-c.netLoopCtx.Done():
 			for {
@@ -222,12 +230,12 @@ func (c *SteamConnection) NetLoop() error {
 
 func (c *SteamConnection) SubmitCMMsg(data []byte, packetReadAmount int) (chan []byte, context.Context, error) {
 	c.netLoopMut.RLock()
+	defer c.netLoopMut.RUnlock()
 	select {
 	case <-c.netLoopCtx.Done():
 		return nil, nil, ErrNetLoopNotRunning
 	default:
 	}
-	c.netLoopMut.RUnlock()
 
 	returnChan := make(chan []byte, packetReadAmount)
 	ctx, ctxCancelF := context.WithTimeout(context.Background(), DefaultCMSubmissionTimeout*time.Second)
