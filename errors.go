@@ -17,4 +17,7 @@ var (
 	ErrNoProtoForEMsg           = errors.New("no matching protobuf type for given EMsg")
 	ErrConnNotEncrypted         = errors.New("connection is not encrypted")
 	ErrNetLoopNotRunning		= errors.New("netloop is not running")
+	ErrReturnChanCtxTimeout		= errors.New("returnChan context has timed out")
+	ErrBadEResult				= errors.New("bad EResult from the server")
+	ErrBadEMsgResponse			= errors.New("bad EMsg response from the server")
 )
