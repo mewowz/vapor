@@ -36,6 +36,8 @@ const (
 	EMsgClientLogonResponse int32 = 751
 
 	EMsgClientLicenseList int32 = 507
+
+	EMsgClientHeartBeat int32 = 703
 )
 
 const (
@@ -65,17 +67,18 @@ const (
 )
 
 type SteamConnection struct {
-	connTimeout     time.Duration
-	connState       ConnectionState
-	connReader      *bufio.Reader
-	conn            net.Conn
-	dialer          net.Dialer
-	encFilter       *HMACFilter
-	writeMut        sync.Mutex
-	clientCMSubmits chan ClientCMSubmission
-	netLoopCtx      context.Context
-	netLoopCancel   context.CancelFunc
-	netLoopMut      sync.RWMutex
+	connTimeout       time.Duration
+	connState         ConnectionState
+	connReader        *bufio.Reader
+	conn              net.Conn
+	dialer            net.Dialer
+	encFilter         *HMACFilter
+	writeMut          sync.Mutex
+	clientCMSubmits   chan ClientCMSubmission
+	netLoopCtx        context.Context
+	netLoopCancel     context.CancelFunc
+	netLoopMut        sync.RWMutex
+	heartbeatTickChan <-chan time.Time
 }
 
 type HMACFilter struct {
@@ -96,11 +99,11 @@ type msgHeader struct {
 }
 
 type ClientCMSubmission struct {
-	data       []byte
-	ctx        context.Context
-	ctxCancelF context.CancelFunc
+	data             []byte
+	ctx              context.Context
+	ctxCancelF       context.CancelFunc
 	packetReadAmount int
-	returnChan chan []byte
+	returnChan       chan []byte
 }
 
 type msgHeaderPB struct {
@@ -161,6 +164,10 @@ func NewPBFromEMsg(EMsg int32, data []byte) (proto.Message, error) {
 		var msg steamproto.CMsgClientLicenseList
 		err := proto.Unmarshal(data, &msg)
 		return &msg, err
+	case EMsgClientHeartBeat:
+		var msg steamproto.CMsgClientHeartBeat
+		err := proto.Unmarshal(data, &msg)
+		return &msg, err
 	}
 	return nil, ErrNoProtoForEMsg
 }
@@ -206,7 +213,7 @@ func (c *SteamConnection) NetLoop() error {
 				return err
 			}
 
-			for _ = range clientSubmission.packetReadAmount {
+			for range clientSubmission.packetReadAmount {
 				data, err := c.getPayload()
 				if err != nil {
 					return err
@@ -215,7 +222,19 @@ func (c *SteamConnection) NetLoop() error {
 				// TODO: reset the context timeout at the end of this and ensure that
 				// it propagates back to the receiver
 			}
+		case <-c.heartbeatTickChan:
+			heartbeat := steamproto.CMsgClientHeartBeat{}
+			heartbeatHeader, err := NewMsgHeaderPB(EMsgClientHeartBeat, &heartbeat)
+			if err != nil {
+				return err
+			}
+			heartbeatHeaderBytes, err := heartbeatHeader.Bytes()
+			if err != nil {
+				return err
+			}
+			c.sendPayload(heartbeatHeaderBytes)
 		case <-c.netLoopCtx.Done():
+			c.heartbeatTickChan = nil
 			for {
 				select {
 				case client := <-c.clientCMSubmits:
@@ -240,16 +259,28 @@ func (c *SteamConnection) SubmitCMMsg(data []byte, packetReadAmount int) (chan [
 	returnChan := make(chan []byte, packetReadAmount)
 	ctx, ctxCancelF := context.WithTimeout(context.Background(), DefaultCMSubmissionTimeout*time.Second)
 	submission := ClientCMSubmission{
-		ctx:        ctx,
-		ctxCancelF: ctxCancelF,
+		ctx:              ctx,
+		ctxCancelF:       ctxCancelF,
 		packetReadAmount: packetReadAmount,
-		returnChan: returnChan,
+		returnChan:       returnChan,
 	}
 	submission.data = make([]byte, len(data))
 	copy(submission.data, data)
 
 	c.clientCMSubmits <- submission
 	return returnChan, ctx, nil
+}
+
+func (c *SteamConnection) StartHeartbeat(interval time.Duration) error {
+	c.netLoopMut.RLock()
+	defer c.netLoopMut.RUnlock()
+	select {
+	case <-c.netLoopCtx.Done():
+		return ErrNetLoopNotRunning
+	default:
+	}
+	c.heartbeatTickChan = time.NewTicker(interval).C
+	return nil
 }
 
 func (c *SteamConnection) resetConnDeadline() {
