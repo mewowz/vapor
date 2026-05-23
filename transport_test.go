@@ -197,3 +197,34 @@ func TestNewMsgHeaderPBRoundTrip(t *testing.T) {
 		)
 	}
 }
+
+func TestPKCS7PadUnpad(t *testing.T) {
+	tests := []struct {
+		input     []byte
+		blockSize int
+	}{
+		{
+			[]byte("abcd"),
+			4,
+		},
+		{
+			[]byte("abcd"),
+			3,
+		},
+		{
+			[]byte("abcd"),
+			5,
+		},
+	}
+
+	for _, test := range tests {
+		padded := pkcs7Pad(test.input, test.blockSize)
+		unpadded := pkcs7Unpad(padded)
+		if !bytes.Equal(test.input, unpadded) {
+			t.Errorf(
+				"pkcs7Unpad(%v) = %v, want pkcs7Unpad(%v) == %v",
+				padded, unpadded, padded, test.input,
+			)
+		}
+	}
+}
