@@ -50,6 +50,13 @@ const DefaultJobID uint64 = math.MaxUint64
 // CurrentProtocolVersion is following SteamKit's MsgClientLogon.CurrentProtocol.
 const CurrentProtocolVersion uint32 = 65581
 
+const msgHeaderMinSizeBytes = 20
+
+const (
+	DefaultDialTimeoutSeconds  = 10
+	DefaultCMSubmissionTimeout = 10
+)
+
 type ConnectionState int
 
 const (
@@ -57,13 +64,6 @@ const (
 	Connected
 	Challenged
 	Encrypted
-)
-
-const msgHeaderMinSizeBytes = 20
-
-const (
-	DefaultDialTimeoutSeconds  = 10
-	DefaultCMSubmissionTimeout = 10
 )
 
 type SteamConnection struct {
@@ -146,6 +146,46 @@ func NewHMACFilter(sessionKey []byte) *HMACFilter {
 	}
 }
 
+func NewMsgHeaderPB(EMsg int32, pbBody proto.Message) (*msgHeaderPB, error) {
+	pbHeader := steamproto.CMsgProtoBufHeader{}
+	headerBytes, err := proto.Marshal(&pbHeader)
+	if err != nil {
+		return nil, err
+	}
+	headerSizeBytes := uint32(len(headerBytes))
+	return &msgHeaderPB{
+		EMsg,
+		headerSizeBytes,
+		pbHeader,
+		pbBody,
+	}, nil
+}
+
+// NewMsgHeaderPBFromBytes creates a msgHeaderPB from the wire format and into
+// a usable msgHeaderPB.
+func NewMsgHeaderPBFromBytes(data []byte) (*msgHeaderPB, error) {
+	rawEMsg := binary.LittleEndian.Uint32(data[:4])
+	EMsg := int32(rawEMsg & 0x7FFFFFFF)
+
+	headerSizeBytes := binary.LittleEndian.Uint32(data[4:8])
+	pbHeader := steamproto.CMsgProtoBufHeader{}
+	err := proto.Unmarshal(data[8:8+headerSizeBytes], &pbHeader)
+	if err != nil {
+		return nil, err
+	}
+
+	pbBody, err := NewPBFromEMsg(EMsg, data[8+headerSizeBytes:])
+	if err != nil {
+		return nil, err
+	}
+	return &msgHeaderPB{
+		EMsg,
+		headerSizeBytes,
+		pbHeader,
+		pbBody,
+	}, nil
+}
+
 func NewPBFromEMsg(EMsg int32, data []byte) (proto.Message, error) {
 	switch EMsg {
 	case EMsgClientHello:
@@ -204,6 +244,49 @@ func (c *SteamConnection) StartNetLoop() error {
 
 	go c.netLoop()
 	return nil
+}
+
+func (c *SteamConnection) SubmitCMMsg(data []byte, packetReadAmount int) (chan []byte, context.Context, error) {
+	c.netLoopMut.RLock()
+	defer c.netLoopMut.RUnlock()
+	select {
+	case <-c.netLoopCtx.Done():
+		return nil, nil, ErrNetLoopNotRunning
+	default:
+	}
+
+	returnChan := make(chan []byte, packetReadAmount)
+	ctx, ctxCancelF := context.WithTimeout(context.Background(), DefaultCMSubmissionTimeout*time.Second)
+	submission := ClientCMSubmission{
+		ctx:              ctx,
+		ctxCancelF:       ctxCancelF,
+		packetReadAmount: packetReadAmount,
+		returnChan:       returnChan,
+	}
+	submission.data = make([]byte, len(data))
+	copy(submission.data, data)
+
+	c.clientCMSubmits <- submission
+	return returnChan, ctx, nil
+}
+
+func (c *SteamConnection) StartHeartbeat(interval time.Duration) error {
+	c.netLoopMut.RLock()
+	defer c.netLoopMut.RUnlock()
+	select {
+	case <-c.netLoopCtx.Done():
+		return ErrNetLoopNotRunning
+	default:
+	}
+	c.heartbeatTickChan = time.NewTicker(interval).C
+	return nil
+}
+
+func (c *SteamConnection) SetConnTimeout(timeout time.Duration, applyNow bool) {
+	c.connTimeout = timeout
+	if applyNow {
+		c.resetConnDeadline()
+	}
 }
 
 func (c *SteamConnection) netLoop() {
@@ -275,85 +358,8 @@ func (c *SteamConnection) netLoop() {
 	}
 }
 
-func (c *SteamConnection) SubmitCMMsg(data []byte, packetReadAmount int) (chan []byte, context.Context, error) {
-	c.netLoopMut.RLock()
-	defer c.netLoopMut.RUnlock()
-	select {
-	case <-c.netLoopCtx.Done():
-		return nil, nil, ErrNetLoopNotRunning
-	default:
-	}
-
-	returnChan := make(chan []byte, packetReadAmount)
-	ctx, ctxCancelF := context.WithTimeout(context.Background(), DefaultCMSubmissionTimeout*time.Second)
-	submission := ClientCMSubmission{
-		ctx:              ctx,
-		ctxCancelF:       ctxCancelF,
-		packetReadAmount: packetReadAmount,
-		returnChan:       returnChan,
-	}
-	submission.data = make([]byte, len(data))
-	copy(submission.data, data)
-
-	c.clientCMSubmits <- submission
-	return returnChan, ctx, nil
-}
-
-func (c *SteamConnection) StartHeartbeat(interval time.Duration) error {
-	c.netLoopMut.RLock()
-	defer c.netLoopMut.RUnlock()
-	select {
-	case <-c.netLoopCtx.Done():
-		return ErrNetLoopNotRunning
-	default:
-	}
-	c.heartbeatTickChan = time.NewTicker(interval).C
-	return nil
-}
-
 func (c *SteamConnection) resetConnDeadline() {
 	c.conn.SetDeadline(time.Now().Add(c.connTimeout))
-}
-
-func (c *SteamConnection) SetConnTimeout(timeout time.Duration, applyNow bool) {
-	c.connTimeout = timeout
-	if applyNow {
-		c.resetConnDeadline()
-	}
-}
-
-// getCMServerHost will pull from Steam's API for CM servers
-// @ https://api.steampowered.com/ISteamDirectory/GetCMListForConnect/v1
-func getCMServerHost(timeout time.Duration) (string, error) {
-	CMListURL := "https://api.steampowered.com/ISteamDirectory/GetCMListForConnect/v1"
-	client := http.Client{Timeout: timeout}
-
-	resp, err := client.Get(CMListURL)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return "", ErrBadCMServerFetch
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	var result serverListResponse
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		return "", err
-	}
-
-	for _, server := range result.Response.ServerList {
-		if server.Type == "netfilter" {
-			return server.Endpoint, nil
-		}
-	}
-
-	return "", ErrNoCMServerFound
 }
 
 func (c *SteamConnection) connectToCMServerTCP(cmHost string, dialTimeout time.Duration) error {
@@ -401,66 +407,6 @@ func (c *SteamConnection) sendClientHello() error {
 		return err
 	}
 	return nil
-}
-
-func NewMsgHeaderPB(EMsg int32, pbBody proto.Message) (*msgHeaderPB, error) {
-	pbHeader := steamproto.CMsgProtoBufHeader{}
-	headerBytes, err := proto.Marshal(&pbHeader)
-	if err != nil {
-		return nil, err
-	}
-	headerSizeBytes := uint32(len(headerBytes))
-	return &msgHeaderPB{
-		EMsg,
-		headerSizeBytes,
-		pbHeader,
-		pbBody,
-	}, nil
-}
-
-// NewMsgHeaderPBFromBytes creates a msgHeaderPB from the wire format and into
-// a usable msgHeaderPB.
-func NewMsgHeaderPBFromBytes(data []byte) (*msgHeaderPB, error) {
-	rawEMsg := binary.LittleEndian.Uint32(data[:4])
-	EMsg := int32(rawEMsg & 0x7FFFFFFF)
-
-	headerSizeBytes := binary.LittleEndian.Uint32(data[4:8])
-	pbHeader := steamproto.CMsgProtoBufHeader{}
-	err := proto.Unmarshal(data[8:8+headerSizeBytes], &pbHeader)
-	if err != nil {
-		return nil, err
-	}
-
-	pbBody, err := NewPBFromEMsg(EMsg, data[8+headerSizeBytes:])
-	if err != nil {
-		return nil, err
-	}
-	return &msgHeaderPB{
-		EMsg,
-		headerSizeBytes,
-		pbHeader,
-		pbBody,
-	}, nil
-}
-
-// Bytes will return the header in wire-format using Little-Endian encoding.
-// Bytes will also ensure that the EMsg has the correct bit set to indicate that it is
-// a protobuf message.
-func (h *msgHeaderPB) Bytes() ([]byte, error) {
-	var data []byte
-	data = binary.LittleEndian.AppendUint32(data, uint32(h.EMsg)|0x80000000)
-	data = binary.LittleEndian.AppendUint32(data, h.HeaderLen)
-	headerBytes, err := proto.Marshal(&h.Header)
-	if err != nil {
-		return nil, err
-	}
-	data = append(data, headerBytes...)
-	bodyBytes, err := proto.Marshal(h.Body)
-	if err != nil {
-		return nil, err
-	}
-	data = append(data, bodyBytes...)
-	return data, nil
 }
 
 func (c *SteamConnection) getRawPayload() ([]byte, error) {
@@ -518,13 +464,6 @@ func (c *SteamConnection) sendPayload(rawPayload []byte) error {
 	}
 }
 
-func (h *msgHeader) Size() uint {
-	return uint(binary.Size(h.EMsg) +
-		binary.Size(h.TargetJobID) +
-		binary.Size(h.SourceJobID) +
-		len(h.Body))
-}
-
 func (c *SteamConnection) establishEncryptedChannel() (bool, error) {
 	// TODO: defer a function for cancelling the connection to properly disconnect
 	// the socket instead of leaving it open
@@ -579,6 +518,197 @@ func (c *SteamConnection) establishEncryptedChannel() (bool, error) {
 	return true, nil
 }
 
+func (c *SteamConnection) sendRawMsgHeader(header msgHeader) error {
+	payload := make([]byte, header.Size())
+	binary.LittleEndian.PutUint32(payload[:4], uint32(header.EMsg))
+	binary.LittleEndian.PutUint64(payload[4:12], header.TargetJobID)
+	binary.LittleEndian.PutUint64(payload[12:20], header.SourceJobID)
+	copy(payload[20:], header.Body)
+
+	err := c.sendRawPayload(payload)
+	return err
+}
+
+func (c *SteamConnection) sendRawPayload(payload []byte) error {
+	var err error
+	defer func() {
+		if err == nil {
+			c.resetConnDeadline()
+		}
+	}()
+	header := newConnectionHeader(uint32(len(payload)))
+
+	var data []byte
+	data = binary.LittleEndian.AppendUint32(data, header.PayloadLen)
+	data = binary.LittleEndian.AppendUint32(data, header.Magic)
+	data = append(data, payload...)
+	_, err = c.conn.Write(data)
+	return err
+}
+
+// Bytes will return the header in wire-format using Little-Endian encoding.
+// Bytes will also ensure that the EMsg has the correct bit set to indicate that it is
+// a protobuf message.
+func (h *msgHeaderPB) Bytes() ([]byte, error) {
+	var data []byte
+	data = binary.LittleEndian.AppendUint32(data, uint32(h.EMsg)|0x80000000)
+	data = binary.LittleEndian.AppendUint32(data, h.HeaderLen)
+	headerBytes, err := proto.Marshal(&h.Header)
+	if err != nil {
+		return nil, err
+	}
+	data = append(data, headerBytes...)
+	bodyBytes, err := proto.Marshal(h.Body)
+	if err != nil {
+		return nil, err
+	}
+	data = append(data, bodyBytes...)
+	return data, nil
+}
+
+func (h *msgHeader) Size() uint {
+	return uint(binary.Size(h.EMsg) +
+		binary.Size(h.TargetJobID) +
+		binary.Size(h.SourceJobID) +
+		len(h.Body))
+}
+
+func (filter *HMACFilter) EncryptMessage(msg []byte) ([]byte, error) {
+	nonce := make([]byte, 3)
+	rand.Read(nonce)
+	HMACInput := append(nonce, msg...)
+	HMACFull := filter.HMACSHA1(HMACInput)
+	initVector := append(HMACFull[:13], nonce...)
+
+	encInitVector, err := filter.AESECBEncrypt(initVector)
+	if err != nil {
+		return nil, err
+	}
+	cipherText, err := filter.AESCBCEncrypt(msg, initVector)
+	if err != nil {
+		return nil, err
+	}
+	output := append(encInitVector, cipherText...)
+	return output, nil
+}
+
+func (filter *HMACFilter) DecryptMessage(encMsg []byte) ([]byte, error) {
+	encInitVector := encMsg[:16]
+	cipherText := encMsg[16:]
+	initVector, err := filter.AESECBDecrypt(encInitVector)
+	if err != nil {
+		return nil, err
+	}
+	msg, err := filter.AESCBCDecrypt(cipherText, initVector)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate
+	nonce := initVector[13:16]
+	HMACInput := append(nonce, msg...)
+	expected := filter.HMACSHA1(HMACInput)
+	if !bytes.Equal(expected[0:13], initVector[0:13]) {
+		return nil, ErrInvalidIVHash
+	}
+	return msg, nil
+}
+
+func (filter *HMACFilter) HMACSHA1(HMACInput []byte) []byte {
+	h := hmac.New(sha1.New, filter.HMACSecret)
+	h.Write(HMACInput)
+	HMACResult := h.Sum(nil)
+	return HMACResult
+}
+
+func (filter *HMACFilter) AESECBEncrypt(vector []byte) ([]byte, error) {
+	// No padding needed because the vec is already 16 bytes
+	block, err := aes.NewCipher(filter.AESKey)
+	if err != nil {
+		return nil, err
+	}
+	mode := ecb.NewECBEncrypter(block)
+	encVector := make([]byte, len(vector))
+	mode.CryptBlocks(encVector, vector)
+	return encVector, nil
+}
+
+func (filter *HMACFilter) AESCBCEncrypt(msg, initVector []byte) ([]byte, error) {
+	paddedMsg := pkcs7Pad(msg, aes.BlockSize)
+	block, err := aes.NewCipher(filter.AESKey)
+	if err != nil {
+		return nil, err
+	}
+	encMsg := make([]byte, len(paddedMsg))
+	mode := cipher.NewCBCEncrypter(block, initVector)
+	mode.CryptBlocks(encMsg, paddedMsg)
+	return encMsg, nil
+}
+
+func (filter *HMACFilter) AESECBDecrypt(encVector []byte) ([]byte, error) {
+	block, err := aes.NewCipher(filter.AESKey)
+	if err != nil {
+		return nil, err
+	}
+	mode := ecb.NewECBDecrypter(block)
+	vector := make([]byte, len(encVector))
+	mode.CryptBlocks(vector, encVector)
+	return vector, nil
+}
+
+func (filter *HMACFilter) AESCBCDecrypt(cipherText, initVector []byte) ([]byte, error) {
+	block, err := aes.NewCipher(filter.AESKey)
+	if err != nil {
+		return nil, err
+	}
+	msg := make([]byte, len(cipherText))
+	mode := cipher.NewCBCDecrypter(block, initVector)
+	mode.CryptBlocks(msg, cipherText)
+	msg = pkcs7Unpad(msg)
+	return msg, nil
+}
+
+// getCMServerHost will pull from Steam's API for CM servers
+// @ https://api.steampowered.com/ISteamDirectory/GetCMListForConnect/v1
+func getCMServerHost(timeout time.Duration) (string, error) {
+	CMListURL := "https://api.steampowered.com/ISteamDirectory/GetCMListForConnect/v1"
+	client := http.Client{Timeout: timeout}
+
+	resp, err := client.Get(CMListURL)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return "", ErrBadCMServerFetch
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	var result serverListResponse
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		return "", err
+	}
+
+	for _, server := range result.Response.ServerList {
+		if server.Type == "netfilter" {
+			return server.Endpoint, nil
+		}
+	}
+
+	return "", ErrNoCMServerFound
+}
+
+func newConnectionHeader(payloadLen uint32) *connectionHeader {
+	return &connectionHeader{
+		payloadLen,
+		MagicPacket,
+	}
+}
+
 func newChannelEncryptResponse(incomingHeader msgHeader) ([]byte, msgHeader, error) {
 	protocolVersion := binary.LittleEndian.Uint32(incomingHeader.Body[:4])
 	universe := binary.LittleEndian.Uint32(incomingHeader.Body[4:8])
@@ -623,41 +753,6 @@ func newChannelEncryptResponse(incomingHeader msgHeader) ([]byte, msgHeader, err
 	return tempSessionKey, channelEncryptResponseMsgHeader, nil
 }
 
-func (c *SteamConnection) sendRawMsgHeader(header msgHeader) error {
-	payload := make([]byte, header.Size())
-	binary.LittleEndian.PutUint32(payload[:4], uint32(header.EMsg))
-	binary.LittleEndian.PutUint64(payload[4:12], header.TargetJobID)
-	binary.LittleEndian.PutUint64(payload[12:20], header.SourceJobID)
-	copy(payload[20:], header.Body)
-
-	err := c.sendRawPayload(payload)
-	return err
-}
-
-func newConnectionHeader(payloadLen uint32) *connectionHeader {
-	return &connectionHeader{
-		payloadLen,
-		MagicPacket,
-	}
-}
-
-func (c *SteamConnection) sendRawPayload(payload []byte) error {
-	var err error
-	defer func() {
-		if err == nil {
-			c.resetConnDeadline()
-		}
-	}()
-	header := newConnectionHeader(uint32(len(payload)))
-
-	var data []byte
-	data = binary.LittleEndian.AppendUint32(data, header.PayloadLen)
-	data = binary.LittleEndian.AppendUint32(data, header.Magic)
-	data = append(data, payload...)
-	_, err = c.conn.Write(data)
-	return err
-}
-
 func parseMsgHeader(data []byte) (msgHeader, error) {
 	// The minimum length of a MsgHdr is 20 bytes
 	if len(data) < msgHeaderMinSizeBytes {
@@ -676,112 +771,6 @@ func parseMsgHeader(data []byte) (msgHeader, error) {
 		header.Body = []byte{}
 	}
 	return header, nil
-}
-
-func (filter *HMACFilter) EncryptMessage(msg []byte) ([]byte, error) {
-	nonce := make([]byte, 3)
-	rand.Read(nonce)
-	HMACInput := append(nonce, msg...)
-	HMACFull := filter.HMACSHA1(HMACInput)
-	initVector := append(HMACFull[:13], nonce...)
-
-	encInitVector, err := filter.AESECBEncrypt(initVector)
-	if err != nil {
-		return nil, err
-	}
-	cipherText, err := filter.AESCBCEncrypt(msg, initVector)
-	if err != nil {
-		return nil, err
-	}
-	output := append(encInitVector, cipherText...)
-	return output, nil
-}
-
-func (filter *HMACFilter) HMACSHA1(HMACInput []byte) []byte {
-	h := hmac.New(sha1.New, filter.HMACSecret)
-	h.Write(HMACInput)
-	HMACResult := h.Sum(nil)
-	return HMACResult
-}
-
-func (filter *HMACFilter) AESECBEncrypt(vector []byte) ([]byte, error) {
-	// No padding needed because the vec is already 16 bytes
-	block, err := aes.NewCipher(filter.AESKey)
-	if err != nil {
-		return nil, err
-	}
-	mode := ecb.NewECBEncrypter(block)
-	encVector := make([]byte, len(vector))
-	mode.CryptBlocks(encVector, vector)
-	return encVector, nil
-}
-
-func (filter *HMACFilter) AESCBCEncrypt(msg, initVector []byte) ([]byte, error) {
-	paddedMsg := pkcs7Pad(msg, aes.BlockSize)
-	block, err := aes.NewCipher(filter.AESKey)
-	if err != nil {
-		return nil, err
-	}
-	encMsg := make([]byte, len(paddedMsg))
-	mode := cipher.NewCBCEncrypter(block, initVector)
-	mode.CryptBlocks(encMsg, paddedMsg)
-	return encMsg, nil
-}
-
-func (filter *HMACFilter) DecryptMessage(encMsg []byte) ([]byte, error) {
-	encInitVector := encMsg[:16]
-	cipherText := encMsg[16:]
-	initVector, err := filter.AESECBDecrypt(encInitVector)
-	if err != nil {
-		return nil, err
-	}
-	msg, err := filter.AESCBCDecrypt(cipherText, initVector)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate
-	nonce := initVector[13:16]
-	HMACInput := append(nonce, msg...)
-	expected := filter.HMACSHA1(HMACInput)
-	if !bytes.Equal(expected[0:13], initVector[0:13]) {
-		return nil, ErrInvalidIVHash
-	}
-	return msg, nil
-}
-
-func (filter *HMACFilter) AESECBDecrypt(encVector []byte) ([]byte, error) {
-	block, err := aes.NewCipher(filter.AESKey)
-	if err != nil {
-		return nil, err
-	}
-	mode := ecb.NewECBDecrypter(block)
-	vector := make([]byte, len(encVector))
-	mode.CryptBlocks(vector, encVector)
-	return vector, nil
-}
-
-func (filter *HMACFilter) AESCBCDecrypt(cipherText, initVector []byte) ([]byte, error) {
-	block, err := aes.NewCipher(filter.AESKey)
-	if err != nil {
-		return nil, err
-	}
-	msg := make([]byte, len(cipherText))
-	mode := cipher.NewCBCDecrypter(block, initVector)
-	mode.CryptBlocks(msg, cipherText)
-	msg = pkcs7Unpad(msg)
-	return msg, nil
-}
-
-func pkcs7Pad(data []byte, blockSize int) []byte {
-	padding := blockSize - (len(data) % blockSize)
-	pad := bytes.Repeat([]byte{byte(padding)}, padding)
-	return append(data, pad...)
-}
-
-func pkcs7Unpad(data []byte) []byte {
-	padding := int(data[len(data)-1])
-	return data[:len(data)-padding]
 }
 
 func getUniversePubKey(universe uint32) (any, error) {
@@ -852,4 +841,15 @@ func getUniversePubKey(universe uint32) (any, error) {
 	}
 
 	return pubKey, nil
+}
+
+func pkcs7Pad(data []byte, blockSize int) []byte {
+	padding := blockSize - (len(data) % blockSize)
+	pad := bytes.Repeat([]byte{byte(padding)}, padding)
+	return append(data, pad...)
+}
+
+func pkcs7Unpad(data []byte) []byte {
+	padding := int(data[len(data)-1])
+	return data[:len(data)-padding]
 }
