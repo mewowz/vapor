@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -17,7 +18,7 @@ func TestGetRawPayload(t *testing.T) {
 	defer client.Close()
 	defer server.Close()
 
-	steamConn := SteamConnection{}
+	steamConn := NewSteamConnection(5*time.Second)
 	steamConn.conn = client
 	steamConn.connReader = bufio.NewReader(client)
 

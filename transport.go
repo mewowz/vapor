@@ -464,8 +464,15 @@ func (h *msgHeaderPB) Bytes() ([]byte, error) {
 }
 
 func (c *SteamConnection) getRawPayload() ([]byte, error) {
+	var err error
+	defer func() {
+		if err == nil {
+			c.resetConnDeadline()
+		}
+	}()
+
 	var header connectionHeader
-	err := binary.Read(c.connReader, binary.LittleEndian, &header)
+	err = binary.Read(c.connReader, binary.LittleEndian, &header)
 	if err != nil {
 		return nil, err
 	}
@@ -635,13 +642,19 @@ func newConnectionHeader(payloadLen uint32) *connectionHeader {
 }
 
 func (c *SteamConnection) sendRawPayload(payload []byte) error {
+	var err error
+	defer func() {
+		if err == nil {
+			c.resetConnDeadline()
+		}
+	}()
 	header := newConnectionHeader(uint32(len(payload)))
 
 	var data []byte
 	data = binary.LittleEndian.AppendUint32(data, header.PayloadLen)
 	data = binary.LittleEndian.AppendUint32(data, header.Magic)
 	data = append(data, payload...)
-	_, err := c.conn.Write(data)
+	_, err = c.conn.Write(data)
 	return err
 }
 
