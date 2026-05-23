@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/mewowz/vapor/internal/steamproto"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestGetRawPayload(t *testing.T) {
@@ -18,7 +20,7 @@ func TestGetRawPayload(t *testing.T) {
 	defer client.Close()
 	defer server.Close()
 
-	steamConn := NewSteamConnection(5*time.Second)
+	steamConn := NewSteamConnection(5 * time.Second)
 	steamConn.conn = client
 	steamConn.connReader = bufio.NewReader(client)
 
@@ -70,7 +72,6 @@ func TestGetRawPayload(t *testing.T) {
 			)
 		}
 	}
-
 }
 
 func TestParseMsgHeader(t *testing.T) {
@@ -157,5 +158,42 @@ func TestHMACEncryptionAndDecryption(t *testing.T) {
 			decMsg, rawMsg,
 		)
 	}
+}
 
+func TestNewMsgHeaderPBRoundTrip(t *testing.T) {
+	protoMsg := steamproto.CMsgClientHello{}
+	headerPB, err := NewMsgHeaderPB(EMsgClientHello, &protoMsg)
+	if err != nil {
+		t.Fatalf(
+			"NewMsgHeaderPB(%v, %v) %v, %v, want err = nil",
+			EMsgClientHello, &protoMsg, headerPB, err,
+		)
+	}
+	headerPBBytes, err := headerPB.Bytes()
+	if err != nil {
+		t.Fatalf(
+			"headerPB.Bytes() = %v, %v, want err = nil",
+			headerPBBytes, err,
+		)
+	}
+	protoMsgFromBytes, err := NewMsgHeaderPBFromBytes(headerPBBytes)
+	if err != nil {
+		t.Fatalf(
+			"NewMsgHeaderPBFromBytes(%v) = %v, %v, want err = nil",
+			headerPBBytes, protoMsgFromBytes, err,
+		)
+	}
+	if protoMsgFromBytes.EMsg != EMsgClientHello {
+		t.Fatalf(
+			"protoMSgFromBytes.EMsg = %v != %v = EMsgClientHello",
+			protoMsgFromBytes.EMsg, EMsgClientHello,
+		)
+	}
+	if !proto.Equal(&protoMsg, protoMsgFromBytes.Body) {
+		t.Fatalf(
+			"NewMsgHeaderPBFromBytes(%v) = %v, proto.Equal(%v, %v) == false, "+
+				"want proto.Equal(&protoMsg, protoMsgFromBytes.Body) == true",
+			headerPBBytes, protoMsgFromBytes, protoMsg, protoMsgFromBytes,
+		)
+	}
 }
