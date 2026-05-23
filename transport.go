@@ -76,7 +76,7 @@ type SteamConnection struct {
 	writeMut          sync.Mutex
 	clientCMSubmits   chan ClientCMSubmission
 	netLoopCtx        context.Context
-	netLoopCancel     context.CancelFunc
+	netLoopCancel     context.CancelCauseFunc
 	netLoopMut        sync.RWMutex
 	heartbeatTickChan <-chan time.Time
 }
@@ -128,8 +128,8 @@ type serverListResponse struct {
 }
 
 func NewSteamConnection(noResponseTimeout time.Duration) *SteamConnection {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
+	ctx, cancel := context.WithCancelCause(context.Background())
+	cancel(nil)
 	return &SteamConnection{
 		connTimeout:     noResponseTimeout,
 		connState:       Disconnected,
@@ -188,13 +188,46 @@ func (c *SteamConnection) CMConnect(dialTimeout time.Duration) error {
 	return nil
 }
 
-func (c *SteamConnection) NetLoop() error {
+func (c *SteamConnection) StartNetLoop() error {
 	if c.connState != Encrypted {
 		return ErrConnNotEncrypted
 	}
+
+	c.netLoopMut.RLock()
+	defer c.netLoopMut.RUnlock()
+
+	select {
+	case <-c.netLoopCtx.Done():
+	default:
+		return ErrNetLoopAlreadyRunning
+	}
+
+	go c.netLoop()
+	return nil
+}
+
+func (c *SteamConnection) netLoop() {
 	c.netLoopMut.Lock()
-	c.netLoopCtx, c.netLoopCancel = context.WithCancel(context.Background())
+	c.netLoopCtx, c.netLoopCancel = context.WithCancelCause(context.Background())
 	c.netLoopMut.Unlock()
+
+	var err error
+
+	cleanupFunc := func() {
+		c.netLoopMut.Lock()
+		defer c.netLoopMut.Unlock()
+		c.netLoopCancel(err)
+		c.heartbeatTickChan = nil
+		for {
+			select {
+			case client := <-c.clientCMSubmits:
+				client.ctxCancelF()
+			default:
+				return
+			}
+		}
+	}
+	defer cleanupFunc()
 
 	for {
 		// There are heartbeats but I have not read the SteamKit source for heartbeats
@@ -207,16 +240,16 @@ func (c *SteamConnection) NetLoop() error {
 				continue
 			default:
 			}
-			err := c.sendPayload(clientSubmission.data)
+			err = c.sendPayload(clientSubmission.data)
 			// TODO: handle the various errors this could yield
 			if err != nil {
-				return err
+				return
 			}
 
 			for range clientSubmission.packetReadAmount {
 				data, err := c.getPayload()
 				if err != nil {
-					return err
+					return
 				}
 				clientSubmission.returnChan <- data
 				// TODO: reset the context timeout at the end of this and ensure that
@@ -226,23 +259,18 @@ func (c *SteamConnection) NetLoop() error {
 			heartbeat := steamproto.CMsgClientHeartBeat{}
 			heartbeatHeader, err := NewMsgHeaderPB(EMsgClientHeartBeat, &heartbeat)
 			if err != nil {
-				return err
+				return
 			}
 			heartbeatHeaderBytes, err := heartbeatHeader.Bytes()
 			if err != nil {
-				return err
+				return
 			}
-			c.sendPayload(heartbeatHeaderBytes)
+			err = c.sendPayload(heartbeatHeaderBytes)
+			if err != nil {
+				return
+			}
 		case <-c.netLoopCtx.Done():
-			c.heartbeatTickChan = nil
-			for {
-				select {
-				case client := <-c.clientCMSubmits:
-					client.ctxCancelF()
-				default:
-					return nil
-				}
-			}
+			return
 		}
 	}
 }
