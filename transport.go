@@ -154,7 +154,7 @@ func NewMsgHeaderPB(EMsg int32, pbBody proto.Message) (*msgHeaderPB, error) {
 	}
 	headerSizeBytes := uint32(len(headerBytes))
 	return &msgHeaderPB{
-		EMsg,
+		int32(uint32(EMsg) | uint32(0x80000000)),
 		headerSizeBytes,
 		pbHeader,
 		pbBody,
