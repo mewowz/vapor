@@ -26,19 +26,19 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const (
-	EMsgChannelEncryptRequest  int32 = 1303
-	EMsgChannelEncryptResponse int32 = 1304
-	EMsgChannelEncryptResult   int32 = 1305
-
-	EMsgClientHello         int32 = 858
-	EMsgClientLogon         int32 = 716
-	EMsgClientLogonResponse int32 = 751
-
-	EMsgClientLicenseList int32 = 507
-
-	EMsgClientHeartBeat int32 = 703
-)
+//const (
+//	EMsgChannelEncryptRequest  int32 = 1303
+//	EMsgChannelEncryptResponse int32 = 1304
+//	EMsgChannelEncryptResult   int32 = 1305
+//
+//	EMsgClientHello         int32 = 858
+//	EMsgClientLogon         int32 = 716
+//	EMsgClientLogonResponse int32 = 751
+//
+//	EMsgClientLicenseList int32 = 507
+//
+//	EMsgClientHeartBeat int32 = 703
+//)
 
 const (
 	MagicPacket                  uint32 = 0x31305456 // VT01
@@ -92,7 +92,7 @@ type connectionHeader struct {
 }
 
 type msgHeader struct {
-	EMsg        int32
+	EMsg        EMsg
 	TargetJobID uint64
 	SourceJobID uint64
 	Body        []byte
@@ -107,7 +107,7 @@ type ClientCMSubmission struct {
 }
 
 type msgHeaderPB struct {
-	EMsg   int32
+	EMsg   EMsg
 	Header steamproto.CMsgProtoBufHeader
 	Body   proto.Message
 }
@@ -145,10 +145,10 @@ func NewHMACFilter(sessionKey []byte) *HMACFilter {
 	}
 }
 
-func NewMsgHeaderPB(EMsg int32, pbBody proto.Message) (*msgHeaderPB, error) {
+func NewMsgHeaderPB(emsg EMsg, pbBody proto.Message) (*msgHeaderPB, error) {
 	pbHeader := steamproto.CMsgProtoBufHeader{}
 	return &msgHeaderPB{
-		int32(uint32(EMsg) | uint32(0x80000000)),
+		EMsg(uint32(emsg) | 0x80000000),
 		pbHeader,
 		pbBody,
 	}, nil
@@ -158,7 +158,7 @@ func NewMsgHeaderPB(EMsg int32, pbBody proto.Message) (*msgHeaderPB, error) {
 // a usable msgHeaderPB.
 func NewMsgHeaderPBFromBytes(data []byte) (*msgHeaderPB, error) {
 	rawEMsg := binary.LittleEndian.Uint32(data[:4])
-	EMsg := int32(rawEMsg & 0x7FFFFFFF)
+	emsg := EMsg(rawEMsg & 0x7FFFFFFF)
 
 	headerSizeBytes := binary.LittleEndian.Uint32(data[4:8])
 	pbHeader := steamproto.CMsgProtoBufHeader{}
@@ -167,19 +167,19 @@ func NewMsgHeaderPBFromBytes(data []byte) (*msgHeaderPB, error) {
 		return nil, err
 	}
 
-	pbBody, err := NewPBFromEMsg(EMsg, data[8+headerSizeBytes:])
+	pbBody, err := NewPBFromEMsg(emsg, data[8+headerSizeBytes:])
 	if err != nil {
 		return nil, err
 	}
 	return &msgHeaderPB{
-		EMsg,
+		emsg,
 		pbHeader,
 		pbBody,
 	}, nil
 }
 
-func NewPBFromEMsg(EMsg int32, data []byte) (proto.Message, error) {
-	switch EMsg {
+func NewPBFromEMsg(emsg EMsg, data []byte) (proto.Message, error) {
+	switch emsg {
 	case EMsgClientHello:
 		var msg steamproto.CMsgClientHello
 		err := proto.Unmarshal(data, &msg)
@@ -188,7 +188,7 @@ func NewPBFromEMsg(EMsg int32, data []byte) (proto.Message, error) {
 		var msg steamproto.CMsgClientLogon
 		err := proto.Unmarshal(data, &msg)
 		return &msg, err
-	case EMsgClientLogonResponse:
+	case EMsgClientLogOnResponse:
 		var msg steamproto.CMsgClientLogonResponse
 		err := proto.Unmarshal(data, &msg)
 		return &msg, err
@@ -752,7 +752,7 @@ func parseMsgHeader(data []byte) (msgHeader, error) {
 	}
 	var header msgHeader
 
-	header.EMsg = int32(binary.LittleEndian.Uint32(data[0:4]))
+	header.EMsg = EMsg(binary.LittleEndian.Uint32(data[0:4]))
 	header.TargetJobID = binary.LittleEndian.Uint64(data[4:12])
 	header.SourceJobID = binary.LittleEndian.Uint64(data[12:20])
 

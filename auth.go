@@ -11,19 +11,19 @@ import (
 var EOSTypeLinuxUnknown int32 = -203
 
 type AnonymousAuthenticator struct {
-	steamConn *SteamConnection
-	connInfo authConnectionInfo
+	steamConn   *SteamConnection
+	connInfo    authConnectionInfo
 	licenseList []*steamproto.CMsgClientLicenseList_License
 }
 
 type authConnectionInfo struct {
-	ClientSessionID int32
-	SteamID uint64
-	CellID uint32
+	ClientSessionID  int32
+	SteamID          uint64
+	CellID           uint32
 	HeartbeatSeconds time.Duration
 }
 
-func NewAnonymousAuthenticator(steamConn *SteamConnection) (*AnonymousAuthenticator ) {
+func NewAnonymousAuthenticator(steamConn *SteamConnection) *AnonymousAuthenticator {
 	return &AnonymousAuthenticator{
 		steamConn: steamConn,
 	}
@@ -42,7 +42,7 @@ func (auth *AnonymousAuthenticator) Logon() error {
 		return err
 	}
 
-	logonResponseMsgHeader, err := parseResponseHeaderBytes(responseHeaderBytes, EMsgClientLogonResponse)
+	logonResponseMsgHeader, err := parseResponseHeaderBytes(responseHeaderBytes, EMsgClientLogOnResponse)
 	if err != nil {
 		return err
 	}
@@ -71,9 +71,9 @@ func (auth *AnonymousAuthenticator) submitClientLogon() (chan []byte, context.Co
 	expectedReturnPacketsCount := 2
 	clientLogon := steamproto.CMsgClientLogon{
 		ProtocolVersion: proto.Uint32(CurrentProtocolVersion),
-		ClientOsType: proto.Uint32(uint32(EOSTypeLinuxUnknown)),
-		ClientLanguage: proto.String("english"),
-		CellId: proto.Uint32(0),
+		ClientOsType:    proto.Uint32(uint32(EOSTypeLinuxUnknown)),
+		ClientLanguage:  proto.String("english"),
+		CellId:          proto.Uint32(0),
 	}
 	clientLogonHeader, err := NewMsgHeaderPB(EMsgClientLogon, &clientLogon)
 	if err != nil {
@@ -90,7 +90,6 @@ func (auth *AnonymousAuthenticator) submitClientLogon() (chan []byte, context.Co
 	}
 	return returnChan, ctx, nil
 }
-
 
 func (auth *AnonymousAuthenticator) handleLicenseList(licenseListMsgHeader msgHeaderPB) error {
 	licenseList := licenseListMsgHeader.Body.(*steamproto.CMsgClientLicenseList)
@@ -111,13 +110,13 @@ func (auth *AnonymousAuthenticator) handleLogonResponse(logonResponseMsgHeader m
 		return ErrBadEResult
 	}
 	auth.connInfo = authConnectionInfo{
-		ClientSessionID: logonResponseHeader.GetClientSessionid(),
-		SteamID: logonResponseHeader.GetSteamid(),
-		CellID: logonResponse.GetCellId(),
+		ClientSessionID:  logonResponseHeader.GetClientSessionid(),
+		SteamID:          logonResponseHeader.GetSteamid(),
+		CellID:           logonResponse.GetCellId(),
 		HeartbeatSeconds: time.Duration(logonResponse.GetHeartbeatSeconds()) * time.Second,
 	}
 	// TODO: After proper implementation of SteamConnection.StartHeartbeatTicker
-	//auth.steamConn.StartHeartbeatTicker(auth.connInfo.HeartbeatSeconds)
+	// auth.steamConn.StartHeartbeatTicker(auth.connInfo.HeartbeatSeconds)
 	return nil
 }
 
@@ -132,13 +131,12 @@ func readReturnChan(returnChan chan []byte, ctx context.Context) ([]byte, error)
 	}
 }
 
-func parseResponseHeaderBytes(responseHeaderBytes []byte, expectedEMsg int32) (*msgHeaderPB, error) {
+func parseResponseHeaderBytes(responseHeaderBytes []byte, expectedEMsg EMsg) (*msgHeaderPB, error) {
 	responseHeader, err := NewMsgHeaderPBFromBytes(responseHeaderBytes)
 	if err != nil {
 		return nil, err
-	} else if responseHeader.EMsg != expectedEMsg { 
+	} else if responseHeader.EMsg != expectedEMsg {
 		return nil, ErrBadEMsgResponse
 	}
 	return responseHeader, nil
-
 }

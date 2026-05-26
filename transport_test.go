@@ -75,9 +75,9 @@ func TestGetRawPayload(t *testing.T) {
 }
 
 func TestParseMsgHeader(t *testing.T) {
-	getMockMsgHeader := func(EMsg int32, TargetJobID, SourceJobID uint64, Body []byte) msgHeader {
+	getMockMsgHeader := func(emsg EMsg, TargetJobID, SourceJobID uint64, Body []byte) msgHeader {
 		return msgHeader{
-			EMsg,
+			emsg,
 			TargetJobID,
 			SourceJobID,
 			Body,
