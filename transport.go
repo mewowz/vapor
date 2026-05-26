@@ -107,10 +107,9 @@ type ClientCMSubmission struct {
 }
 
 type msgHeaderPB struct {
-	EMsg      int32
-	HeaderLen uint32
-	Header    steamproto.CMsgProtoBufHeader
-	Body      proto.Message
+	EMsg   int32
+	Header steamproto.CMsgProtoBufHeader
+	Body   proto.Message
 }
 
 type serverListResponse struct {
@@ -148,14 +147,8 @@ func NewHMACFilter(sessionKey []byte) *HMACFilter {
 
 func NewMsgHeaderPB(EMsg int32, pbBody proto.Message) (*msgHeaderPB, error) {
 	pbHeader := steamproto.CMsgProtoBufHeader{}
-	headerBytes, err := proto.Marshal(&pbHeader)
-	if err != nil {
-		return nil, err
-	}
-	headerSizeBytes := uint32(len(headerBytes))
 	return &msgHeaderPB{
 		int32(uint32(EMsg) | uint32(0x80000000)),
-		headerSizeBytes,
 		pbHeader,
 		pbBody,
 	}, nil
@@ -180,7 +173,6 @@ func NewMsgHeaderPBFromBytes(data []byte) (*msgHeaderPB, error) {
 	}
 	return &msgHeaderPB{
 		EMsg,
-		headerSizeBytes,
 		pbHeader,
 		pbBody,
 	}, nil
@@ -550,13 +542,13 @@ func (c *SteamConnection) sendRawPayload(payload []byte) error {
 // Bytes will also ensure that the EMsg has the correct bit set to indicate that it is
 // a protobuf message.
 func (h *msgHeaderPB) Bytes() ([]byte, error) {
-	var data []byte
-	data = binary.LittleEndian.AppendUint32(data, uint32(h.EMsg)|0x80000000)
-	data = binary.LittleEndian.AppendUint32(data, h.HeaderLen)
 	headerBytes, err := proto.Marshal(&h.Header)
 	if err != nil {
 		return nil, err
 	}
+	var data []byte
+	data = binary.LittleEndian.AppendUint32(data, uint32(h.EMsg)|0x80000000)
+	data = binary.LittleEndian.AppendUint32(data, uint32(len(headerBytes)))
 	data = append(data, headerBytes...)
 	bodyBytes, err := proto.Marshal(h.Body)
 	if err != nil {
