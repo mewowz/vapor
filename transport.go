@@ -26,20 +26,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-//const (
-//	EMsgChannelEncryptRequest  int32 = 1303
-//	EMsgChannelEncryptResponse int32 = 1304
-//	EMsgChannelEncryptResult   int32 = 1305
-//
-//	EMsgClientHello         int32 = 858
-//	EMsgClientLogon         int32 = 716
-//	EMsgClientLogonResponse int32 = 751
-//
-//	EMsgClientLicenseList int32 = 507
-//
-//	EMsgClientHeartBeat int32 = 703
-//)
-
 const (
 	MagicPacket                  uint32 = 0x31305456 // VT01
 	ChannelEncryptRequestMinSize uint   = 8
