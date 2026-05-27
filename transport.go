@@ -85,11 +85,10 @@ type msgHeader struct {
 }
 
 type ClientCMSubmission struct {
-	data             []byte
-	ctx              context.Context
-	ctxCancelF       context.CancelFunc
-	packetReadAmount int
-	returnChan       chan []byte
+	data       []byte
+	ctx        context.Context
+	ctxCancelF context.CancelFunc
+	returnChan chan []byte
 }
 
 type msgHeaderPB struct {
@@ -121,6 +120,7 @@ func NewSteamConnection(noResponseTimeout time.Duration) *SteamConnection {
 		clientCMSubmits: make(chan ClientCMSubmission, 32),
 		netLoopCtx:      ctx,
 		netLoopCancel:   cancel,
+		heartbeatTicker: &time.Ticker{},
 	}
 }
 
@@ -224,7 +224,7 @@ func (c *SteamConnection) StartNetLoop() error {
 	return nil
 }
 
-func (c *SteamConnection) SubmitCMMsg(data []byte, packetReadAmount int) (chan []byte, context.Context, error) {
+func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context, error) {
 	c.netLoopMut.RLock()
 	defer c.netLoopMut.RUnlock()
 	select {
@@ -233,13 +233,12 @@ func (c *SteamConnection) SubmitCMMsg(data []byte, packetReadAmount int) (chan [
 	default:
 	}
 
-	returnChan := make(chan []byte, packetReadAmount)
+	returnChan := make(chan []byte, 1)
 	ctx, ctxCancelF := context.WithTimeout(context.Background(), DefaultCMSubmissionTimeout*time.Second)
 	submission := ClientCMSubmission{
-		ctx:              ctx,
-		ctxCancelF:       ctxCancelF,
-		packetReadAmount: packetReadAmount,
-		returnChan:       returnChan,
+		ctx:        ctx,
+		ctxCancelF: ctxCancelF,
+		returnChan: returnChan,
 	}
 	submission.data = make([]byte, len(data))
 	copy(submission.data, data)
@@ -278,8 +277,9 @@ func (c *SteamConnection) netLoop() {
 		c.netLoopMut.Lock()
 		defer c.netLoopMut.Unlock()
 		c.netLoopCancel(err)
-		c.heartbeatTicker.Stop()
-		c.heartbeatTicker = nil
+		if c.heartbeatTicker != nil {
+			c.heartbeatTicker.Stop()
+		}
 		for {
 			select {
 			case client := <-c.clientCMSubmits:
@@ -303,20 +303,16 @@ func (c *SteamConnection) netLoop() {
 			default:
 			}
 			err = c.sendPayload(clientSubmission.data)
-			// TODO: handle the various errors this could yield
+			// TODO: handle the various errors this could return
 			if err != nil {
 				return
 			}
 
-			for range clientSubmission.packetReadAmount {
-				data, err := c.getPayload()
-				if err != nil {
-					return
-				}
-				clientSubmission.returnChan <- data
-				// TODO: reset the context timeout at the end of this and ensure that
-				// it propagates back to the receiver
+			data, err := c.getPayload()
+			if err != nil {
+				return
 			}
+			clientSubmission.returnChan <- data
 		case <-c.heartbeatTicker.C:
 			heartbeat := steamproto.CMsgClientHeartBeat{}
 			heartbeatHeader, err := NewMsgHeaderPB(EMsgClientHeartBeat, &heartbeat)

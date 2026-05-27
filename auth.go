@@ -68,7 +68,6 @@ func (auth *AnonymousAuthenticator) Logon() error {
 }
 
 func (auth *AnonymousAuthenticator) submitClientLogon() (chan []byte, context.Context, error) {
-	expectedReturnPacketsCount := 2
 	clientLogon := steamproto.CMsgClientLogon{
 		ProtocolVersion:      proto.Uint32(66580),
 		ClientPackageVersion: proto.Uint32(1561159470),
@@ -83,7 +82,7 @@ func (auth *AnonymousAuthenticator) submitClientLogon() (chan []byte, context.Co
 	if err != nil {
 		return nil, nil, err
 	}
-	returnChan, ctx, err := auth.steamConn.SubmitCMMsg(clientLogonHeaderBytes, expectedReturnPacketsCount)
+	returnChan, ctx, err := auth.steamConn.SubmitCMMsg(clientLogonHeaderBytes)
 	if err != nil {
 		return nil, nil, err
 	}
