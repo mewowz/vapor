@@ -17,10 +17,10 @@ type AnonymousAuthenticator struct {
 }
 
 type authConnectionInfo struct {
-	ClientSessionID  int32
-	SteamID          uint64
-	CellID           uint32
-	HeartbeatSeconds time.Duration
+	ClientSessionID   int32
+	SteamID           uint64
+	CellID            uint32
+	HeartbeatDuration time.Duration
 }
 
 func NewAnonymousAuthenticator(steamConn *SteamConnection) *AnonymousAuthenticator {
@@ -70,15 +70,14 @@ func (auth *AnonymousAuthenticator) Logon() error {
 func (auth *AnonymousAuthenticator) submitClientLogon() (chan []byte, context.Context, error) {
 	expectedReturnPacketsCount := 2
 	clientLogon := steamproto.CMsgClientLogon{
-		ProtocolVersion: proto.Uint32(CurrentProtocolVersion),
-		ClientOsType:    proto.Uint32(uint32(EOSTypeLinuxUnknown)),
-		ClientLanguage:  proto.String("english"),
-		CellId:          proto.Uint32(0),
+		ProtocolVersion:      proto.Uint32(66580),
+		ClientPackageVersion: proto.Uint32(1561159470),
 	}
 	clientLogonHeader, err := NewMsgHeaderPB(EMsgClientLogon, &clientLogon)
 	if err != nil {
 		return nil, nil, err
 	}
+	clientLogonHeader.Header.Steamid = proto.Uint64(uint64(10)<<52 | uint64(1)<<56)
 
 	clientLogonHeaderBytes, err := clientLogonHeader.Bytes()
 	if err != nil {

@@ -473,7 +473,7 @@ func (c *SteamConnection) establishEncryptedChannel() (bool, error) {
 	if header.Size() < ChannelEncryptRequestMinSize {
 		return false, ErrBadChannelEncryptRequest
 	}
-	if header.EMsg == 1303 {
+	if header.EMsg == EMsgChannelEncryptRequest {
 		c.connState = Challenged
 	} else {
 		return false, ErrBadChannelEncryptRequest
@@ -497,7 +497,7 @@ func (c *SteamConnection) establishEncryptedChannel() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if header.EMsg != 1305 {
+	if header.EMsg != EMsgChannelEncryptResult {
 		return false, ErrBadChannelEncryptResult
 	}
 
@@ -740,7 +740,7 @@ func newChannelEncryptResponse(incomingHeader msgHeader) ([]byte, msgHeader, err
 	channelEncryptResponseBody = append(channelEncryptResponseBody, encryptedBlob...)
 	channelEncryptResponseBody = binary.LittleEndian.AppendUint32(channelEncryptResponseBody, keyCrc)
 	channelEncryptResponseBody = binary.LittleEndian.AppendUint32(channelEncryptResponseBody, 0)
-	channelEncryptResponseMsgHeader := msgHeader{1304, DefaultJobID, DefaultJobID, channelEncryptResponseBody}
+	channelEncryptResponseMsgHeader := msgHeader{EMsgChannelEncryptResponse, DefaultJobID, DefaultJobID, channelEncryptResponseBody}
 
 	return tempSessionKey, channelEncryptResponseMsgHeader, nil
 }
