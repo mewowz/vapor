@@ -53,18 +53,18 @@ const (
 )
 
 type SteamConnection struct {
-	connTimeout       time.Duration
-	connState         ConnectionState
-	connReader        *bufio.Reader
-	conn              net.Conn
-	dialer            net.Dialer
-	encFilter         *HMACFilter
-	writeMut          sync.Mutex
-	clientCMSubmits   chan ClientCMSubmission
-	netLoopCtx        context.Context
-	netLoopCancel     context.CancelCauseFunc
-	netLoopMut        sync.RWMutex
-	heartbeatTickChan <-chan time.Time
+	connTimeout     time.Duration
+	connState       ConnectionState
+	connReader      *bufio.Reader
+	conn            net.Conn
+	dialer          net.Dialer
+	encFilter       *HMACFilter
+	writeMut        sync.Mutex
+	clientCMSubmits chan ClientCMSubmission
+	netLoopCtx      context.Context
+	netLoopCancel   context.CancelCauseFunc
+	netLoopMut      sync.RWMutex
+	heartbeatTicker *time.Ticker
 }
 
 type HMACFilter struct {
@@ -256,7 +256,7 @@ func (c *SteamConnection) StartHeartbeat(interval time.Duration) error {
 		return ErrNetLoopNotRunning
 	default:
 	}
-	c.heartbeatTickChan = time.NewTicker(interval).C
+	c.heartbeatTicker = time.NewTicker(interval)
 	return nil
 }
 
@@ -278,7 +278,8 @@ func (c *SteamConnection) netLoop() {
 		c.netLoopMut.Lock()
 		defer c.netLoopMut.Unlock()
 		c.netLoopCancel(err)
-		c.heartbeatTickChan = nil
+		c.heartbeatTicker.Stop()
+		c.heartbeatTicker = nil
 		for {
 			select {
 			case client := <-c.clientCMSubmits:
@@ -316,7 +317,7 @@ func (c *SteamConnection) netLoop() {
 				// TODO: reset the context timeout at the end of this and ensure that
 				// it propagates back to the receiver
 			}
-		case <-c.heartbeatTickChan:
+		case <-c.heartbeatTicker.C:
 			heartbeat := steamproto.CMsgClientHeartBeat{}
 			heartbeatHeader, err := NewMsgHeaderPB(EMsgClientHeartBeat, &heartbeat)
 			if err != nil {
