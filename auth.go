@@ -109,10 +109,10 @@ func (auth *AnonymousAuthenticator) handleLogonResponse(logonResponseMsgHeader m
 		return ErrBadEResult
 	}
 	auth.connInfo = authConnectionInfo{
-		ClientSessionID:  logonResponseHeader.GetClientSessionid(),
-		SteamID:          logonResponseHeader.GetSteamid(),
-		CellID:           logonResponse.GetCellId(),
-		HeartbeatSeconds: time.Duration(logonResponse.GetHeartbeatSeconds()) * time.Second,
+		ClientSessionID:   logonResponseHeader.GetClientSessionid(),
+		SteamID:           logonResponseHeader.GetSteamid(),
+		CellID:            logonResponse.GetCellId(),
+		HeartbeatDuration: time.Duration(logonResponse.GetHeartbeatSeconds()) * time.Second,
 	}
 	// TODO: After proper implementation of SteamConnection.StartHeartbeatTicker
 	// auth.steamConn.StartHeartbeatTicker(auth.connInfo.HeartbeatSeconds)
