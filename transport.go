@@ -166,6 +166,10 @@ func NewMsgHeaderPBFromBytes(data []byte) (*msgHeaderPB, error) {
 
 func NewPBFromEMsg(emsg EMsg, data []byte) (proto.Message, error) {
 	switch emsg {
+	case EMsgMulti:
+		var msg steamproto.CMsgMulti
+		err := proto.Unmarshal(data, &msg)
+		return &msg, err
 	case EMsgClientHello:
 		var msg steamproto.CMsgClientHello
 		err := proto.Unmarshal(data, &msg)
