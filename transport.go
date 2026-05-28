@@ -3,6 +3,7 @@ package vapor
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
@@ -645,6 +646,42 @@ func (filter *HMACFilter) AESCBCDecrypt(cipherText, initVector []byte) ([]byte, 
 	mode.CryptBlocks(msg, cipherText)
 	msg = pkcs7Unpad(msg)
 	return msg, nil
+}
+
+func UnpackCMsgMultiToBytes(msg steamproto.CMsgMulti) ([][]byte, error) {
+	var rawBody []byte
+	if msg.GetSizeUnzipped() > 0 {
+		decompressed, err := gzipDecompress(msg.GetMessageBody(), msg.GetSizeUnzipped())
+		if err != nil {
+			return nil, err
+		}
+		rawBody = decompressed
+	} else {
+		rawBody = msg.GetMessageBody()
+	}
+	var msgsBytes [][]byte
+	for len(rawBody) > 0 {
+		subSize := binary.LittleEndian.Uint32(rawBody[:4])
+		subData := rawBody[4 : 4+subSize]
+		msgsBytes = append(msgsBytes, subData)
+
+		rawBody = rawBody[4+subSize:]
+	}
+	return msgsBytes, nil
+}
+
+func gzipDecompress(data []byte, unzippedSize uint32) ([]byte, error) {
+	r := bytes.NewReader(data)
+	zr, err := gzip.NewReader(r)
+	if err != nil {
+		return nil, err
+	}
+	decompressedData := make([]byte, unzippedSize)
+	_, err = zr.Read(decompressedData)
+	if err != nil {
+		return nil, err
+	}
+	return decompressedData, nil
 }
 
 // getCMServerHost will pull from Steam's API for CM servers
