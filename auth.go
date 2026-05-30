@@ -2,6 +2,7 @@ package vapor
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/mewowz/vapor/internal/steamproto"
@@ -42,28 +43,64 @@ func (auth *AnonymousAuthenticator) Logon() error {
 		return err
 	}
 
-	logonResponseMsgHeader, err := parseResponseHeaderBytes(responseHeaderBytes, EMsgClientLogOnResponse)
+	responseHeader, err := NewMsgHeaderPBFromBytes(responseHeaderBytes)
 	if err != nil {
 		return err
 	}
-	err = auth.handleLogonResponse(*logonResponseMsgHeader)
+	if responseHeader.EMsg != EMsgMulti {
+		return ErrBadEMsgResponse
+	}
+	cmsgMultiRaw, ok := responseHeader.Body.(*steamproto.CMsgMulti)
+	if !ok {
+		return ErrMalformedPayload
+	}
+
+	cmsgMultiBytes, err := UnpackCMsgMultiToBytes(*cmsgMultiRaw)
 	if err != nil {
 		return err
 	}
 
-	responseHeaderBytes, err = readReturnChan(returnChan, ctx)
-	if err != nil {
-		return err
+	responses := make(map[EMsg]*msgHeaderPB)
+	for _, msg := range cmsgMultiBytes {
+		response, err := NewMsgHeaderPBFromBytes(msg)
+		if err != nil {
+			if errors.Is(err, ErrNoProtoForEMsg) {
+				continue
+			} else {
+				return err
+			}
+		}
+		_, alreadyExists := responses[response.EMsg]
+		if alreadyExists {
+			return ErrDuplicateEMsgInMulti
+		} else {
+			responses[response.EMsg] = response
+		}
 	}
 
-	licenseListMsgHeader, err := parseResponseHeaderBytes(responseHeaderBytes, EMsgClientLicenseList)
-	if err != nil {
-		return err
+	emsgHandlers := map[EMsg]func(msgHeaderPB) error{
+		EMsgClientLogOnResponse: auth.handleClientLogOnResponse,
+		// TODO: handle all known incoming messages in response
+		// to a CMsgClientLogon
+		// EMsgClientLicenseList:   auth.handleClientLicenseList,
 	}
-	err = auth.handleLicenseList(*licenseListMsgHeader)
-	if err != nil {
-		return err
+	for emsg, msgHeader := range responses {
+		emsgHandler, ok := emsgHandlers[emsg]
+		if !ok {
+			continue
+		} else {
+			delete(emsgHandlers, emsg)
+		}
+		err := emsgHandler(*msgHeader)
+		if err != nil {
+			return err
+		}
 	}
+
+	if len(emsgHandlers) != 0 {
+		return ErrMissingMessageFromMulti
+	}
+
 	return nil
 }
 
@@ -89,7 +126,9 @@ func (auth *AnonymousAuthenticator) submitClientLogon() (chan []byte, context.Co
 	return returnChan, ctx, nil
 }
 
-func (auth *AnonymousAuthenticator) handleLicenseList(licenseListMsgHeader msgHeaderPB) error {
+func (auth *AnonymousAuthenticator) handleClientLicenseList(licenseListMsgHeader msgHeaderPB) error {
+	// TODO: Move or delete this function. Currently unused due to the new changes and
+	// realizing we don't actually receive a CMsgClientLicesnseList from steam after a CMsgClientLogon
 	licenseList := licenseListMsgHeader.Body.(*steamproto.CMsgClientLicenseList)
 	if licenseList.GetEresult() != 1 {
 		return ErrBadEResult
@@ -98,7 +137,7 @@ func (auth *AnonymousAuthenticator) handleLicenseList(licenseListMsgHeader msgHe
 	return nil
 }
 
-func (auth *AnonymousAuthenticator) handleLogonResponse(logonResponseMsgHeader msgHeaderPB) error {
+func (auth *AnonymousAuthenticator) handleClientLogOnResponse(logonResponseMsgHeader msgHeaderPB) error {
 	// TODO: handle logonResponse.Eresult == 48 to try another
 	// CM server. Needs to signal to the auth.steamConn to close the connection,
 	// mark it as "bad," and try another CM server from the CM server list
@@ -119,7 +158,6 @@ func (auth *AnonymousAuthenticator) handleLogonResponse(logonResponseMsgHeader m
 }
 
 func readReturnChan(returnChan chan []byte, ctx context.Context) ([]byte, error) {
-	// Not a fan of the naming for this function, so I'll rename it later
 	// TODO: rename this function to something better - naming feels ambiguous
 	select {
 	case response := <-returnChan:
@@ -127,14 +165,4 @@ func readReturnChan(returnChan chan []byte, ctx context.Context) ([]byte, error)
 	case <-ctx.Done():
 		return nil, ErrReturnChanCtxTimeout
 	}
-}
-
-func parseResponseHeaderBytes(responseHeaderBytes []byte, expectedEMsg EMsg) (*msgHeaderPB, error) {
-	responseHeader, err := NewMsgHeaderPBFromBytes(responseHeaderBytes)
-	if err != nil {
-		return nil, err
-	} else if responseHeader.EMsg != expectedEMsg {
-		return nil, ErrBadEMsgResponse
-	}
-	return responseHeader, nil
 }

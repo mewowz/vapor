@@ -22,4 +22,6 @@ var (
 	ErrBadEResult               = errors.New("bad EResult from the server")
 	ErrBadEMsgResponse          = errors.New("bad EMsg response from the server")
 	ErrHeartbeatAlreadyRunning  = errors.New("heartbeat is already running")
+	ErrMissingMessageFromMulti  = errors.New("missing message from CMsgMulti")
+	ErrDuplicateEMsgInMulti     = errors.New("duplicate EMsg in CMsgMulti")
 )
