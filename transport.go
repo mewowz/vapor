@@ -47,7 +47,6 @@ type SteamConnection struct {
 	connState       ConnectionState
 	connReader      *bufio.Reader
 	conn            net.Conn
-	dialer          net.Dialer
 	encFilter       *HMACFilter
 	writeMut        sync.Mutex
 	clientCMSubmits chan ClientCMSubmission
@@ -244,7 +243,8 @@ func (c *SteamConnection) connectToCMServerTCP(cmHost string, dialTimeout time.D
 
 	dialCtx, dialCancel := context.WithTimeout(context.Background(), dialTimeout)
 	defer dialCancel()
-	c.conn, err = c.dialer.DialContext(dialCtx, network, cmHost)
+	dialer := net.Dialer{}
+	c.conn, err = dialer.DialContext(dialCtx, network, cmHost)
 	if err != nil {
 		return err
 	}

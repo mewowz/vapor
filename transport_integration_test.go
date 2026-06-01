@@ -14,8 +14,9 @@ import (
 func TestEstablishEncryptedChannel(t *testing.T) {
 	var err error
 	host := "162.254.192.101:27017"
-	steamConn := NewSteamConnection(5*time.Second)
-	steamConn.conn, err = steamConn.dialer.DialContext(context.Background(), "tcp", host)
+	steamConn := NewSteamConnection(5 * time.Second)
+	dialer := net.Dialer{}
+	steamConn.conn, err = dialer.DialContext(context.Background(), "tcp", host)
 	if err != nil {
 		t.Fatalf("Could not connect to Steam CM server: %v", err)
 	}
