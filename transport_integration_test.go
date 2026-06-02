@@ -23,9 +23,9 @@ func TestEstablishEncryptedChannel(t *testing.T) {
 	defer steamConn.conn.Close()
 	steamConn.connReader = bufio.NewReader(steamConn.conn)
 
-	success, err := steamConn.establishEncryptedChannel()
-	if !success {
-		t.Errorf("establishEncryptedChannel() = %v, %v", success, err)
+	err = steamConn.establishEncryptedChannel()
+	if err != nil {
+		t.Errorf("establishEncryptedChannel() = %v", err)
 	}
 }
 
