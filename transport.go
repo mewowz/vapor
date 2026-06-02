@@ -253,10 +253,8 @@ func (c *SteamConnection) connectToCMServerTCP(cmHost string, dialTimeout time.D
 
 	c.connReader = bufio.NewReader(c.conn)
 
-	encryptSuccess, err := c.establishEncryptedChannel()
-	if encryptSuccess {
-		c.connState = Encrypted
-	} else {
+	err = c.establishEncryptedChannel()
+	if err != nil {
 		return err
 	}
 

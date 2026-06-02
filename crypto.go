@@ -165,55 +165,55 @@ func (filter *HMACFilter) AESCBCDecrypt(cipherText, initVector []byte) ([]byte, 
 	return msg, nil
 }
 
-func (c *SteamConnection) establishEncryptedChannel() (bool, error) {
+func (c *SteamConnection) establishEncryptedChannel() error {
 	payload, err := c.getRawPayload()
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	// The payload should just be the ChannelEncryptRequest
 	header, err := parseMsgHeader(payload)
 	if err != nil {
-		return false, err
+		return err
 	}
 	if header.Size() < ChannelEncryptRequestMinSize {
-		return false, ErrBadChannelEncryptRequest
+		return ErrBadChannelEncryptRequest
 	}
 	if header.EMsg == EMsgChannelEncryptRequest {
 		c.connState = Challenged
 	} else {
-		return false, ErrBadChannelEncryptRequest
+		return ErrBadChannelEncryptRequest
 	}
 
 	tempSessionKey, channelEncryptResponseMsgHeader, err := newChannelEncryptResponse(header)
 	if err != nil {
-		return false, err
+		return err
 	}
 	err = c.sendRawMsgHeader(channelEncryptResponseMsgHeader)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	payload, err = c.getRawPayload()
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	header, err = parseMsgHeader(payload)
 	if err != nil {
-		return false, err
+		return err
 	}
 	if header.EMsg != EMsgChannelEncryptResult {
-		return false, ErrBadChannelEncryptResult
+		return ErrBadChannelEncryptResult
 	}
 
 	EResult := binary.LittleEndian.Uint32(header.Body)
 	if EResult != 1 {
-		return false, ErrBadChannelEncryptResult
+		return ErrBadChannelEncryptResult
 	}
 	c.encFilter = NewHMACFilter(tempSessionKey)
 
-	return true, nil
+	return nil
 }
 
 func pkcs7Pad(data []byte, blockSize int) []byte {
