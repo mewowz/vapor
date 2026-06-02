@@ -189,7 +189,14 @@ func (c *SteamConnection) establishEncryptedChannel() error {
 	if err != nil {
 		return err
 	}
-	err = c.sendRawMsgHeader(channelEncryptResponseMsgHeader)
+
+	// Send the channelEncryptResponseMsgHeader on the wire with proper serialization
+	serializedEncryptResponse := make([]byte, channelEncryptResponseMsgHeader.Size())
+	binary.LittleEndian.PutUint32(serializedEncryptResponse[:4], uint32(channelEncryptResponseMsgHeader.EMsg))
+	binary.LittleEndian.PutUint64(serializedEncryptResponse[4:12], channelEncryptResponseMsgHeader.TargetJobID)
+	binary.LittleEndian.PutUint64(serializedEncryptResponse[12:20], channelEncryptResponseMsgHeader.SourceJobID)
+	copy(serializedEncryptResponse[20:], channelEncryptResponseMsgHeader.Body)
+	err = c.sendRawPayload(serializedEncryptResponse)
 	if err != nil {
 		return err
 	}

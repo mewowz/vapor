@@ -258,6 +258,8 @@ func (c *SteamConnection) connectToCMServerTCP(cmHost string, dialTimeout time.D
 		return err
 	}
 
+	c.connState = Encrypted
+
 	err = c.sendClientHello()
 	if err != nil {
 		return err
@@ -336,17 +338,6 @@ func (c *SteamConnection) sendPayload(rawPayload []byte) error {
 		err := c.sendRawPayload(rawPayload)
 		return err
 	}
-}
-
-func (c *SteamConnection) sendRawMsgHeader(header msgHeader) error {
-	payload := make([]byte, header.Size())
-	binary.LittleEndian.PutUint32(payload[:4], uint32(header.EMsg))
-	binary.LittleEndian.PutUint64(payload[4:12], header.TargetJobID)
-	binary.LittleEndian.PutUint64(payload[12:20], header.SourceJobID)
-	copy(payload[20:], header.Body)
-
-	err := c.sendRawPayload(payload)
-	return err
 }
 
 func (c *SteamConnection) sendRawPayload(payload []byte) error {
