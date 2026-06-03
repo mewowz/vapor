@@ -47,7 +47,7 @@ type SteamConnection struct {
 	connState             ConnectionState
 	connReader            *bufio.Reader
 	conn                  net.Conn
-	encFilter             *HMACFilter
+	encFilter             MessageFilter
 	writeMut              sync.Mutex
 	clientCMSubmits       chan ClientCMSubmission
 	netLoopCtx            context.Context
@@ -84,6 +84,7 @@ func NewSteamConnection(noResponseTimeout time.Duration) *SteamConnection {
 		connTimeout:           noResponseTimeout,
 		connState:             Disconnected,
 		clientCMSubmits:       make(chan ClientCMSubmission, 32),
+		encFilter:             emptyFilter{},
 		netLoopCtx:            ctx,
 		netLoopCancel:         cancel,
 		heartbeatIntervalChan: make(chan time.Duration),
@@ -334,27 +335,17 @@ func (c *SteamConnection) getPayload() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	if c.connState == Encrypted {
-		payload, err := c.encFilter.DecryptMessage(rawPayload)
-		return payload, err
-	} else {
-		return rawPayload, nil
-	}
+	payload, err := c.encFilter.Decrypt(rawPayload)
+	return payload, err
 }
 
 func (c *SteamConnection) sendPayload(rawPayload []byte) error {
-	if c.connState == Encrypted {
-		payload, err := c.encFilter.EncryptMessage(rawPayload)
-		if err != nil {
-			return err
-		}
-		err = c.sendRawPayload(payload)
-		return err
-	} else {
-		err := c.sendRawPayload(rawPayload)
+	payload, err := c.encFilter.Encrypt(rawPayload)
+	if err != nil {
 		return err
 	}
+	err = c.sendRawPayload(payload)
+	return err
 }
 
 func (c *SteamConnection) sendRawPayload(payload []byte) error {

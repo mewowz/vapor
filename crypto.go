@@ -14,10 +14,21 @@ import (
 	"github.com/andreburgaud/crypt2go/ecb"
 )
 
+type MessageFilter interface {
+	Encrypt([]byte) ([]byte, error)
+	Decrypt([]byte) ([]byte, error)
+}
+
 type HMACFilter struct {
 	HMACSecret []byte
 	AESKey     []byte
 }
+
+// emptyFilter acts as a mere pass-thru filter that doesn't do anything to the underlying
+// data being passed through its methods Encrypt & Decrypt.
+// Its use is to allow unencrypted transmission of data during the encryption
+// handshake with the CM server
+type emptyFilter struct{}
 
 func newChannelEncryptResponse(incomingHeader msgHeader) ([]byte, msgHeader, error) {
 	protocolVersion := binary.LittleEndian.Uint32(incomingHeader.Body[:4])
@@ -70,7 +81,7 @@ func NewHMACFilter(sessionKey []byte) *HMACFilter {
 	}
 }
 
-func (filter *HMACFilter) EncryptMessage(msg []byte) ([]byte, error) {
+func (filter *HMACFilter) Encrypt(msg []byte) ([]byte, error) {
 	nonce := make([]byte, 3)
 	rand.Read(nonce)
 	HMACInput := append(nonce, msg...)
@@ -89,7 +100,7 @@ func (filter *HMACFilter) EncryptMessage(msg []byte) ([]byte, error) {
 	return output, nil
 }
 
-func (filter *HMACFilter) DecryptMessage(encMsg []byte) ([]byte, error) {
+func (filter *HMACFilter) Decrypt(encMsg []byte) ([]byte, error) {
 	encInitVector := encMsg[:16]
 	cipherText := encMsg[16:]
 	initVector, err := filter.AESECBDecrypt(encInitVector)
@@ -163,6 +174,14 @@ func (filter *HMACFilter) AESCBCDecrypt(cipherText, initVector []byte) ([]byte, 
 	mode.CryptBlocks(msg, cipherText)
 	msg = pkcs7Unpad(msg)
 	return msg, nil
+}
+
+func (f emptyFilter) Encrypt(data []byte) ([]byte, error) {
+	return data, nil
+}
+
+func (f emptyFilter) Decrypt(data []byte) ([]byte, error) {
+	return data, nil
 }
 
 func (c *SteamConnection) establishEncryptedChannel() error {

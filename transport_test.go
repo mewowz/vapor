@@ -137,14 +137,14 @@ func TestHMACEncryptionAndDecryption(t *testing.T) {
 	filter := NewHMACFilter(key)
 
 	rawMsg := []byte("12345")
-	encMsg, err := filter.EncryptMessage(rawMsg)
+	encMsg, err := filter.Encrypt(rawMsg)
 	if err != nil {
 		t.Fatalf(
 			"filter.EncryptMessage(%v) = %v, err = %v, want err = nil",
 			rawMsg, encMsg, err,
 		)
 	}
-	decMsg, err := filter.DecryptMessage(encMsg)
+	decMsg, err := filter.Decrypt(encMsg)
 	if err != nil {
 		t.Fatalf(
 			"filter.DecryptMessage(%v) = %v, err = %v, want err = nil",
