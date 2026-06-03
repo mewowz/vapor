@@ -185,7 +185,7 @@ func (f emptyFilter) Decrypt(data []byte) ([]byte, error) {
 }
 
 func (c *SteamConnection) establishEncryptedChannel() error {
-	payload, err := c.getRawPayload()
+	payload, err := c.getPayload()
 	if err != nil {
 		return err
 	}
@@ -215,12 +215,12 @@ func (c *SteamConnection) establishEncryptedChannel() error {
 	binary.LittleEndian.PutUint64(serializedEncryptResponse[4:12], channelEncryptResponseMsgHeader.TargetJobID)
 	binary.LittleEndian.PutUint64(serializedEncryptResponse[12:20], channelEncryptResponseMsgHeader.SourceJobID)
 	copy(serializedEncryptResponse[20:], channelEncryptResponseMsgHeader.Body)
-	err = c.sendRawPayload(serializedEncryptResponse)
+	err = c.sendPayload(serializedEncryptResponse)
 	if err != nil {
 		return err
 	}
 
-	payload, err = c.getRawPayload()
+	payload, err = c.getPayload()
 	if err != nil {
 		return err
 	}

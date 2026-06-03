@@ -303,7 +303,7 @@ func (c *SteamConnection) sendClientHello() error {
 	return nil
 }
 
-func (c *SteamConnection) getRawPayload() ([]byte, error) {
+func (c *SteamConnection) getPayload() ([]byte, error) {
 	var err error
 	defer func() {
 		if err == nil {
@@ -321,17 +321,8 @@ func (c *SteamConnection) getRawPayload() ([]byte, error) {
 		return nil, ErrBadMagic
 	}
 
-	payload := make([]byte, header.PayloadLen)
-	_, err = io.ReadFull(c.connReader, payload)
-	if err != nil {
-		return nil, err
-	}
-
-	return payload, nil
-}
-
-func (c *SteamConnection) getPayload() ([]byte, error) {
-	rawPayload, err := c.getRawPayload()
+	rawPayload := make([]byte, header.PayloadLen)
+	_, err = io.ReadFull(c.connReader, rawPayload)
 	if err != nil {
 		return nil, err
 	}
@@ -340,24 +331,20 @@ func (c *SteamConnection) getPayload() ([]byte, error) {
 }
 
 func (c *SteamConnection) sendPayload(rawPayload []byte) error {
-	payload, err := c.encFilter.Encrypt(rawPayload)
-	if err != nil {
-		return err
-	}
-	err = c.sendRawPayload(payload)
-	return err
-}
-
-func (c *SteamConnection) sendRawPayload(payload []byte) error {
 	var err error
 	defer func() {
 		if err == nil {
 			c.resetConnDeadline()
 		}
 	}()
-	header := newConnectionHeader(uint32(len(payload)))
+
+	payload, err := c.encFilter.Encrypt(rawPayload)
+	if err != nil {
+		return err
+	}
 
 	var data []byte
+	header := newConnectionHeader(uint32(len(payload)))
 	data = binary.LittleEndian.AppendUint32(data, header.PayloadLen)
 	data = binary.LittleEndian.AppendUint32(data, header.Magic)
 	data = append(data, payload...)

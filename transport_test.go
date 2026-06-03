@@ -58,16 +58,16 @@ func TestGetRawPayload(t *testing.T) {
 	for _, test := range tests {
 		go sendPayload(test.srvPayloadLen, test.srvMagicPacket, test.srvPayload)
 
-		got, gotErr := steamConn.getRawPayload()
+		got, gotErr := steamConn.getPayload()
 		if !bytes.Equal(got, test.want) {
 			t.Errorf(
-				"SteamConnection.getRawPayload() = %v, %v, want %v, %v",
+				"SteamConnection.getPayload() = %v, %v, want %v, %v",
 				got, gotErr, test.want, test.wantErr,
 			)
 		}
 		if !errors.Is(gotErr, test.wantErr) {
 			t.Errorf(
-				"SteamConnection.getRawPayload() = %v, %v, want %v, %v",
+				"SteamConnection.getPayload() = %v, %v, want %v, %v",
 				got, gotErr, test.want, test.wantErr,
 			)
 		}
