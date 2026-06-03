@@ -43,17 +43,17 @@ const (
 )
 
 type SteamConnection struct {
-	connTimeout     time.Duration
-	connState       ConnectionState
-	connReader      *bufio.Reader
-	conn            net.Conn
-	encFilter       *HMACFilter
-	writeMut        sync.Mutex
-	clientCMSubmits chan ClientCMSubmission
-	netLoopCtx      context.Context
-	netLoopCancel   context.CancelCauseFunc
-	netLoopMut      sync.RWMutex
-	heartbeatTicker *time.Ticker
+	connTimeout           time.Duration
+	connState             ConnectionState
+	connReader            *bufio.Reader
+	conn                  net.Conn
+	encFilter             *HMACFilter
+	writeMut              sync.Mutex
+	clientCMSubmits       chan ClientCMSubmission
+	netLoopCtx            context.Context
+	netLoopCancel         context.CancelCauseFunc
+	netLoopMut            sync.RWMutex
+	heartbeatIntervalChan chan time.Duration
 }
 
 type ClientCMSubmission struct {
@@ -81,12 +81,12 @@ func NewSteamConnection(noResponseTimeout time.Duration) *SteamConnection {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	cancel(nil)
 	return &SteamConnection{
-		connTimeout:     noResponseTimeout,
-		connState:       Disconnected,
-		clientCMSubmits: make(chan ClientCMSubmission, 32),
-		netLoopCtx:      ctx,
-		netLoopCancel:   cancel,
-		heartbeatTicker: &time.Ticker{},
+		connTimeout:           noResponseTimeout,
+		connState:             Disconnected,
+		clientCMSubmits:       make(chan ClientCMSubmission, 32),
+		netLoopCtx:            ctx,
+		netLoopCancel:         cancel,
+		heartbeatIntervalChan: make(chan time.Duration),
 	}
 }
 
@@ -147,7 +147,7 @@ func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context
 	return returnChan, ctx, nil
 }
 
-func (c *SteamConnection) StartHeartbeat(interval time.Duration) error {
+func (c *SteamConnection) SetHeartbeatInterval(interval time.Duration) error {
 	c.netLoopMut.RLock()
 	defer c.netLoopMut.RUnlock()
 	select {
@@ -155,7 +155,7 @@ func (c *SteamConnection) StartHeartbeat(interval time.Duration) error {
 		return ErrNetLoopNotRunning
 	default:
 	}
-	c.heartbeatTicker = time.NewTicker(interval)
+	c.heartbeatIntervalChan <- interval
 	return nil
 }
 
@@ -173,12 +173,17 @@ func (c *SteamConnection) netLoop() {
 
 	var err error
 
+	var heartbeatChan <-chan time.Time
+	var t *time.Ticker
+
 	cleanupFunc := func() {
 		c.netLoopMut.Lock()
 		defer c.netLoopMut.Unlock()
 		c.netLoopCancel(err)
-		if c.heartbeatTicker != nil {
-			c.heartbeatTicker.Stop()
+		if t != nil {
+			t.Stop()
+			t = nil
+			heartbeatChan = nil
 		}
 		for {
 			select {
@@ -213,7 +218,19 @@ func (c *SteamConnection) netLoop() {
 				return
 			}
 			clientSubmission.returnChan <- data
-		case <-c.heartbeatTicker.C:
+		case interval := <-c.heartbeatIntervalChan:
+			// Submitting an interval <= 0 acts as a sentinel value to ensure that the ticker
+			// completely stops instead of constnatly ticking away or being re-used after being stopped
+			if t != nil {
+				t.Stop()
+				t = nil
+				heartbeatChan = nil
+			}
+			if interval > 0 {
+				t = time.NewTicker(interval)
+				heartbeatChan = t.C
+			}
+		case <-heartbeatChan:
 			heartbeat := steamproto.CMsgClientHeartBeat{}
 			heartbeatHeader, err := NewMsgHeaderPB(EMsgClientHeartBeat, &heartbeat)
 			if err != nil {

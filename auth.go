@@ -152,8 +152,7 @@ func (auth *AnonymousAuthenticator) handleClientLogOnResponse(logonResponseMsgHe
 		CellID:            logonResponse.GetCellId(),
 		HeartbeatDuration: time.Duration(logonResponse.GetHeartbeatSeconds()) * time.Second,
 	}
-	// TODO: After proper implementation of SteamConnection.StartHeartbeatTicker
-	// auth.steamConn.StartHeartbeatTicker(auth.connInfo.HeartbeatSeconds)
+	auth.steamConn.SetHeartbeatInterval(auth.connInfo.HeartbeatDuration)
 	return nil
 }
 
