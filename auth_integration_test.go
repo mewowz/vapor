@@ -9,7 +9,7 @@ import (
 )
 
 func TestAnonymousLogon(t *testing.T) {
-	steamConn := NewSteamConnection(10 * time.Second)
+	steamConn := NewSteamConnection(10*time.Second, nil)
 	err := steamConn.CMConnect(10 * time.Second)
 	if err != nil {
 		t.Fatalf("CMConnect failed: %v", err)

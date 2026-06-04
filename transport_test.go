@@ -20,7 +20,7 @@ func TestGetRawPayload(t *testing.T) {
 	defer client.Close()
 	defer server.Close()
 
-	steamConn := NewSteamConnection(5 * time.Second)
+	steamConn := NewSteamConnection(5*time.Second, nil)
 	steamConn.conn = client
 	steamConn.connReader = bufio.NewReader(client)
 

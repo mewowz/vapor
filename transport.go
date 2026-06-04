@@ -6,7 +6,9 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"math"
+	"math/rand"
 	"net"
 	"net/http"
 	"sync"
@@ -54,6 +56,7 @@ type SteamConnection struct {
 	netLoopCancel         context.CancelCauseFunc
 	netLoopMut            sync.RWMutex
 	heartbeatIntervalChan chan time.Duration
+	logger                *slog.Logger
 }
 
 type ClientCMSubmission struct {
@@ -77,9 +80,12 @@ type serverListResponse struct {
 	} `json:"response"`
 }
 
-func NewSteamConnection(noResponseTimeout time.Duration) *SteamConnection {
+func NewSteamConnection(noResponseTimeout time.Duration, logger *slog.Logger) *SteamConnection {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	cancel(nil)
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &SteamConnection{
 		connTimeout:           noResponseTimeout,
 		connState:             Disconnected,
@@ -88,6 +94,7 @@ func NewSteamConnection(noResponseTimeout time.Duration) *SteamConnection {
 		netLoopCtx:            ctx,
 		netLoopCancel:         cancel,
 		heartbeatIntervalChan: make(chan time.Duration),
+		logger:                logger,
 	}
 }
 
@@ -95,14 +102,18 @@ func (c *SteamConnection) CMConnect(dialTimeout time.Duration) error {
 	if c.connState != Disconnected {
 		return ErrAlreadyConnectedToCM
 	}
-	serverHost, err := getCMServerHost(dialTimeout)
+	c.logger.Info("fetching steam server host")
+	serverHost, availableHosts, err := getCMServerHost(dialTimeout)
 	if err != nil {
 		return err
 	}
+	c.logger.Debug("fetch CM server host list", "chosen_host", serverHost, "hosts_available", availableHosts)
+	c.logger.Info("connecting to CM server", "host", serverHost, "protocol", "tcp")
 	err = c.connectToCMServerTCP(serverHost, dialTimeout)
 	if err != nil {
 		return err
 	}
+	c.logger.Info("connected to CM server", "host", serverHost, "protocol", "tcp")
 
 	return nil
 }
@@ -122,6 +133,7 @@ func (c *SteamConnection) StartNetLoop() error {
 	}
 
 	go c.netLoop()
+	c.logger.Info("netloop started")
 	return nil
 }
 
@@ -145,6 +157,8 @@ func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context
 	copy(submission.data, data)
 
 	c.clientCMSubmits <- submission
+	c.logger.Info("queued CM message")
+	c.logger.Debug("queued CM message", "data_len", len(data))
 	return returnChan, ctx, nil
 }
 
@@ -157,6 +171,8 @@ func (c *SteamConnection) SetHeartbeatInterval(interval time.Duration) error {
 	default:
 	}
 	c.heartbeatIntervalChan <- interval
+	c.logger.Info("set heartbeat interval")
+	c.logger.Debug("set heartbeat interval", "duration", interval)
 	return nil
 }
 
@@ -165,9 +181,12 @@ func (c *SteamConnection) SetConnTimeout(timeout time.Duration, applyNow bool) {
 	if applyNow {
 		c.resetConnDeadline()
 	}
+	c.logger.Info("set connection timeout")
+	c.logger.Debug("set connection timeout", "timeout", timeout)
 }
 
 func (c *SteamConnection) netLoop() {
+	c.logger.Info("initializing netloop")
 	c.netLoopMut.Lock()
 	c.netLoopCtx, c.netLoopCancel = context.WithCancelCause(context.Background())
 	c.netLoopMut.Unlock()
@@ -178,6 +197,7 @@ func (c *SteamConnection) netLoop() {
 	var t *time.Ticker
 
 	cleanupFunc := func() {
+		c.logger.Info("deconstructing netloop")
 		c.netLoopMut.Lock()
 		defer c.netLoopMut.Unlock()
 		c.netLoopCancel(err)
@@ -186,42 +206,56 @@ func (c *SteamConnection) netLoop() {
 			t = nil
 			heartbeatChan = nil
 		}
+		c.logger.Debug("deconstructed heartbeat ticker and chan")
+		i := 0
 		for {
 			select {
 			case client := <-c.clientCMSubmits:
 				client.ctxCancelF()
+				i += 1
 			default:
+				c.logger.Debug("canceled remaining CM queue", "cancel_count", i)
 				return
 			}
 		}
 	}
 	defer cleanupFunc()
 
+	c.logger.Info("starting netloop")
 	for {
 		// There are heartbeats but I have not read the SteamKit source for heartbeats
 		// nor implemented anything for it just yet
 		select {
 		case clientSubmission := <-c.clientCMSubmits:
+			c.logger.Debug("handling outgoing CM message")
 			select {
 			case <-clientSubmission.ctx.Done():
-				// Skip if the client is timed-out or was cancelled
+				// Skip if the client is timed-out or was canceled
+				c.logger.Debug("skipping client message submission", "reason", "context is done")
 				continue
 			default:
 			}
+			c.logger.Debug("sending outgoing CM message")
 			err = c.sendPayload(clientSubmission.data)
 			// TODO: handle the various errors this could return
 			if err != nil {
 				return
 			}
+			c.logger.Debug("done sending outgoing CM message")
 
+			c.logger.Debug("fetching response payload")
 			data, err := c.getPayload()
 			if err != nil {
 				return
 			}
+			c.logger.Debug("done fetching response payload")
+
 			clientSubmission.returnChan <- data
+			c.logger.Debug("returned response payload", "data_len", len(data))
 		case interval := <-c.heartbeatIntervalChan:
 			// Submitting an interval <= 0 acts as a sentinel value to ensure that the ticker
 			// completely stops instead of constnatly ticking away or being re-used after being stopped
+			c.logger.Debug("updating heartbeat interval", "interval", interval)
 			if t != nil {
 				t.Stop()
 				t = nil
@@ -232,6 +266,7 @@ func (c *SteamConnection) netLoop() {
 				heartbeatChan = t.C
 			}
 		case <-heartbeatChan:
+			c.logger.Debug("sending heartbeat")
 			heartbeat := steamproto.CMsgClientHeartBeat{}
 			heartbeatHeader, err := NewMsgHeaderPB(EMsgClientHeartBeat, &heartbeat)
 			if err != nil {
@@ -246,12 +281,14 @@ func (c *SteamConnection) netLoop() {
 				return
 			}
 		case <-c.netLoopCtx.Done():
+			c.logger.Info("stopping netloop")
 			return
 		}
 	}
 }
 
 func (c *SteamConnection) resetConnDeadline() {
+	c.logger.Debug("resetting connection deadline", "new_deadline", time.Now().Add(c.connTimeout))
 	c.conn.SetDeadline(time.Now().Add(c.connTimeout))
 }
 
@@ -259,6 +296,7 @@ func (c *SteamConnection) connectToCMServerTCP(cmHost string, dialTimeout time.D
 	var err error
 	network := "tcp"
 
+	c.logger.Debug("dialing CM server", "host", cmHost, "dial_timeout", dialTimeout)
 	dialCtx, dialCancel := context.WithTimeout(context.Background(), dialTimeout)
 	defer dialCancel()
 	dialer := net.Dialer{}
@@ -271,13 +309,16 @@ func (c *SteamConnection) connectToCMServerTCP(cmHost string, dialTimeout time.D
 
 	c.connReader = bufio.NewReader(c.conn)
 
+	c.logger.Debug("establishing encrypted channel", "host", cmHost)
 	err = c.establishEncryptedChannel()
 	if err != nil {
 		return err
 	}
+	c.logger.Debug("established encrypted channel", "host", cmHost)
 
 	c.connState = Encrypted
 
+	c.logger.Info("sending ClientHello")
 	err = c.sendClientHello()
 	if err != nil {
 		return err
@@ -314,6 +355,7 @@ func (c *SteamConnection) getPayload() ([]byte, error) {
 	var header connectionHeader
 	err = binary.Read(c.connReader, binary.LittleEndian, &header)
 	if err != nil {
+		c.logger.Debug("failed to read payload", "err", err)
 		return nil, err
 	}
 
@@ -340,6 +382,7 @@ func (c *SteamConnection) sendPayload(rawPayload []byte) error {
 
 	payload, err := c.encFilter.Encrypt(rawPayload)
 	if err != nil {
+		c.logger.Debug("failed to send payload", "err", err)
 		return err
 	}
 
@@ -354,34 +397,40 @@ func (c *SteamConnection) sendPayload(rawPayload []byte) error {
 
 // getCMServerHost will pull from Steam's API for CM servers
 // @ https://api.steampowered.com/ISteamDirectory/GetCMListForConnect/v1
-func getCMServerHost(timeout time.Duration) (string, error) {
+func getCMServerHost(timeout time.Duration) (string, []string, error) {
 	CMListURL := "https://api.steampowered.com/ISteamDirectory/GetCMListForConnect/v1"
 	client := http.Client{Timeout: timeout}
 
 	resp, err := client.Get(CMListURL)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return "", ErrBadCMServerFetch
+		return "", nil, ErrBadCMServerFetch
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	var result serverListResponse
 	err = json.Unmarshal(body, &result)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
+	serverList := []string{}
 	for _, server := range result.Response.ServerList {
 		if server.Type == "netfilter" {
-			return server.Endpoint, nil
+			//return server.Endpoint, nil
+			serverList = append(serverList, server.Endpoint)
 		}
 	}
 
-	return "", ErrNoCMServerFound
+	if len(serverList) == 0 {
+		return "", nil, ErrNoCMServerFound
+	} else {
+		return serverList[rand.Intn(len(serverList))], serverList, nil
+	}
 }
