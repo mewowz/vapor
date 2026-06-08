@@ -157,7 +157,6 @@ func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context
 	copy(submission.data, data)
 
 	c.clientCMSubmits <- submission
-	c.logger.Info("queued CM message")
 	c.logger.Debug("queued CM message", "data_len", len(data))
 	return returnChan, ctx, nil
 }
@@ -171,7 +170,6 @@ func (c *SteamConnection) SetHeartbeatInterval(interval time.Duration) error {
 	default:
 	}
 	c.heartbeatIntervalChan <- interval
-	c.logger.Info("set heartbeat interval")
 	c.logger.Debug("set heartbeat interval", "duration", interval)
 	return nil
 }
@@ -181,7 +179,6 @@ func (c *SteamConnection) SetConnTimeout(timeout time.Duration, applyNow bool) {
 	if applyNow {
 		c.resetConnDeadline()
 	}
-	c.logger.Info("set connection timeout")
 	c.logger.Debug("set connection timeout", "timeout", timeout)
 }
 
@@ -288,8 +285,9 @@ func (c *SteamConnection) netLoop() {
 }
 
 func (c *SteamConnection) resetConnDeadline() {
-	c.logger.Debug("resetting connection deadline", "new_deadline", time.Now().Add(c.connTimeout))
-	c.conn.SetDeadline(time.Now().Add(c.connTimeout))
+	deadline := time.Now().Add(c.connTimeout)
+	c.logger.Debug("resetting connection deadline", "new_deadline", deadline)
+	c.conn.SetDeadline(deadline)
 }
 
 func (c *SteamConnection) connectToCMServerTCP(cmHost string, dialTimeout time.Duration) error {
