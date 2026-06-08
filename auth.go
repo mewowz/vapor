@@ -3,6 +3,7 @@ package vapor
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/mewowz/vapor/internal/steamproto"
@@ -15,6 +16,7 @@ type AnonymousAuthenticator struct {
 	steamConn   *SteamConnection
 	connInfo    authConnectionInfo
 	licenseList []*steamproto.CMsgClientLicenseList_License
+	logger      *slog.Logger
 }
 
 type authConnectionInfo struct {
@@ -27,12 +29,14 @@ type authConnectionInfo struct {
 func NewAnonymousAuthenticator(steamConn *SteamConnection) *AnonymousAuthenticator {
 	return &AnonymousAuthenticator{
 		steamConn: steamConn,
+		logger:    steamConn.logger,
 	}
 }
 
 func (auth *AnonymousAuthenticator) Logon() error {
 	// This expects to receive a ClientLogOnResponse and then ClientLicenseList
 	// is sent by the server automatically immediately afterwards
+	auth.logger.Info("anonymously logging into steam CM server")
 	returnChan, ctx, err := auth.submitClientLogon()
 	if err != nil {
 		return err
@@ -42,11 +46,14 @@ func (auth *AnonymousAuthenticator) Logon() error {
 	if err != nil {
 		return err
 	}
+	auth.logger.Debug("got response header", "len", len(responseHeaderBytes))
 
 	responseHeader, err := NewMsgHeaderPBFromBytes(responseHeaderBytes)
 	if err != nil {
 		return err
 	}
+	// We are expecting a Multi from Steam
+	// Something went wrong if it sends something else back
 	if responseHeader.EMsg != EMsgMulti {
 		return ErrBadEMsgResponse
 	}
@@ -60,6 +67,7 @@ func (auth *AnonymousAuthenticator) Logon() error {
 		return err
 	}
 
+	auth.logger.Debug("handling response(s) from steam")
 	responses := make(map[EMsg]*msgHeaderPB)
 	for _, msg := range cmsgMultiBytes {
 		response, err := NewMsgHeaderPBFromBytes(msg)
@@ -101,6 +109,7 @@ func (auth *AnonymousAuthenticator) Logon() error {
 		return ErrMissingMessageFromMulti
 	}
 
+	auth.logger.Info("anonymous logon successful")
 	return nil
 }
 
@@ -115,6 +124,7 @@ func (auth *AnonymousAuthenticator) submitClientLogon() (chan []byte, context.Co
 	}
 	clientLogonHeader.Header.Steamid = proto.Uint64(uint64(10)<<52 | uint64(1)<<56)
 
+	auth.logger.Debug("submitting client logon", "clientLogon", clientLogon)
 	clientLogonHeaderBytes, err := clientLogonHeader.Bytes()
 	if err != nil {
 		return nil, nil, err
@@ -153,6 +163,8 @@ func (auth *AnonymousAuthenticator) handleClientLogOnResponse(logonResponseMsgHe
 		HeartbeatDuration: time.Duration(logonResponse.GetHeartbeatSeconds()) * time.Second,
 	}
 	auth.steamConn.SetHeartbeatInterval(auth.connInfo.HeartbeatDuration)
+	// TODO: find a better timeout to set after receiving the heartbeat interval
+	auth.steamConn.SetConnTimeout(auth.connInfo.HeartbeatDuration+(5*time.Second), false)
 	return nil
 }
 
