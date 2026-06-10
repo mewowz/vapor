@@ -133,11 +133,7 @@ func (h *msgHeader) HeaderType() HeaderType {
 }
 
 func (h *msgHeader) Body() ([]byte, error) {
-	var bodyBytes []byte
-	bodyBytes = binary.LittleEndian.AppendUint64(bodyBytes, h.targetJobID)
-	bodyBytes = binary.LittleEndian.AppendUint64(bodyBytes, h.sourceJobID)
-	bodyBytes = append(bodyBytes, h.body...)
-	return bodyBytes, nil
+	return h.body, nil
 }
 
 func (h *msgHeader) Proto() proto.Message {
