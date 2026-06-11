@@ -117,6 +117,19 @@ func NewPBFromEMsg(emsg EMsg, data []byte) (proto.Message, error) {
 	return nil, ErrNoProtoForEMsg
 }
 
+func NewExtendedMsgHeaderFromBytes(data []byte) *extendedMsgHeader {
+	return &extendedMsgHeader{
+		emsg:          EMsg(binary.LittleEndian.Uint32(data[:4])),
+		headerSize:    uint8(data[4]), // This should always be 36
+		headerVersion: binary.LittleEndian.Uint16(data[5:7]),
+		targetJobID:   binary.LittleEndian.Uint64(data[7:15]),
+		sourceJobID:   binary.LittleEndian.Uint64(data[15:23]),
+		headerCanary:  data[23],
+		steamID:       binary.LittleEndian.Uint64(data[24:32]),
+		sessionID:     int32(binary.LittleEndian.Uint32(data[32:])),
+	}
+}
+
 func newConnectionHeader(payloadLen uint32) *connectionHeader {
 	return &connectionHeader{
 		payloadLen,
