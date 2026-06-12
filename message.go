@@ -279,10 +279,10 @@ func gzipDecompress(data []byte, unzippedSize uint32) ([]byte, error) {
 	return decompressedData, nil
 }
 
-func parseMsgHeader(data []byte) (msgHeader, error) {
+func parseMsgHeader(data []byte) (*msgHeader, error) {
 	// The minimum length of a MsgHdr is 20 bytes
 	if len(data) < msgHeaderMinSizeBytes {
-		return msgHeader{}, ErrMalformedPacket
+		return nil, ErrMalformedPacket
 	}
 	var header msgHeader
 
@@ -296,5 +296,5 @@ func parseMsgHeader(data []byte) (msgHeader, error) {
 	} else {
 		header.body = []byte{}
 	}
-	return header, nil
+	return &header, nil
 }

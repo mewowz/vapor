@@ -30,12 +30,13 @@ type HMACFilter struct {
 // handshake with the CM server
 type emptyFilter struct{}
 
-func newChannelEncryptResponse(incomingHeader msgHeader) ([]byte, msgHeader, error) {
-	protocolVersion := binary.LittleEndian.Uint32(incomingHeader.Body[:4])
-	universe := binary.LittleEndian.Uint32(incomingHeader.Body[4:8])
+func newChannelEncryptResponse(incomingHeader *msgHeader) ([]byte, msgHeader, error) {
+	headerBody, _ := incomingHeader.Body()
+	protocolVersion := binary.LittleEndian.Uint32(headerBody[:4])
+	universe := binary.LittleEndian.Uint32(headerBody[4:8])
 
-	randomChallenge := make([]byte, len(incomingHeader.Body[8:]))
-	_, err := binary.Decode(incomingHeader.Body[8:], binary.LittleEndian, &randomChallenge)
+	randomChallenge := make([]byte, len(headerBody[8:]))
+	_, err := binary.Decode(headerBody[8:], binary.LittleEndian, &randomChallenge)
 	if err != nil {
 		return nil, msgHeader{}, err
 	}
@@ -195,10 +196,11 @@ func (c *SteamConnection) establishEncryptedChannel() error {
 	if err != nil {
 		return err
 	}
-	if header.Size() < ChannelEncryptRequestMinSize {
+	// Hmmmm... I should fix this type mismatch
+	if header.Size() < int(ChannelEncryptRequestMinSize) {
 		return ErrBadChannelEncryptRequest
 	}
-	if header.EMsg == EMsgChannelEncryptRequest {
+	if header.EMsg() == EMsgChannelEncryptRequest {
 		c.connState = Challenged
 	} else {
 		return ErrBadChannelEncryptRequest
@@ -211,10 +213,10 @@ func (c *SteamConnection) establishEncryptedChannel() error {
 
 	// Send the channelEncryptResponseMsgHeader on the wire with proper serialization
 	serializedEncryptResponse := make([]byte, channelEncryptResponseMsgHeader.Size())
-	binary.LittleEndian.PutUint32(serializedEncryptResponse[:4], uint32(channelEncryptResponseMsgHeader.EMsg))
-	binary.LittleEndian.PutUint64(serializedEncryptResponse[4:12], channelEncryptResponseMsgHeader.TargetJobID)
-	binary.LittleEndian.PutUint64(serializedEncryptResponse[12:20], channelEncryptResponseMsgHeader.SourceJobID)
-	copy(serializedEncryptResponse[20:], channelEncryptResponseMsgHeader.Body)
+	binary.LittleEndian.PutUint32(serializedEncryptResponse[:4], uint32(channelEncryptResponseMsgHeader.EMsg()))
+	binary.LittleEndian.PutUint64(serializedEncryptResponse[4:12], channelEncryptResponseMsgHeader.targetJobID)
+	binary.LittleEndian.PutUint64(serializedEncryptResponse[12:20], channelEncryptResponseMsgHeader.sourceJobID)
+	copy(serializedEncryptResponse[20:], channelEncryptResponseMsgHeader.body)
 	err = c.sendPayload(serializedEncryptResponse)
 	if err != nil {
 		return err
@@ -229,11 +231,12 @@ func (c *SteamConnection) establishEncryptedChannel() error {
 	if err != nil {
 		return err
 	}
-	if header.EMsg != EMsgChannelEncryptResult {
+	if header.EMsg() != EMsgChannelEncryptResult {
 		return ErrBadChannelEncryptResult
 	}
 
-	EResult := binary.LittleEndian.Uint32(header.Body)
+	headerBody, _ := header.Body()
+	EResult := binary.LittleEndian.Uint32(headerBody)
 	if EResult != 1 {
 		return ErrBadChannelEncryptResult
 	}
