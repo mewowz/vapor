@@ -24,4 +24,6 @@ var (
 	ErrHeartbeatAlreadyRunning  = errors.New("heartbeat is already running")
 	ErrMissingMessageFromMulti  = errors.New("missing message from CMsgMulti")
 	ErrDuplicateEMsgInMulti     = errors.New("duplicate EMsg in CMsgMulti")
+	ErrNoChanForJob             = errors.New("no return channel in dispatcher map")
+	ErrJobIDAlreadyInDispatcher = errors.New("jobID already exists in dispatcher map")
 )
