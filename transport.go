@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/mewowz/vapor/internal/steamproto"
@@ -56,6 +57,8 @@ type SteamConnection struct {
 	netLoopCancel         context.CancelCauseFunc
 	netLoopMut            sync.RWMutex
 	heartbeatIntervalChan chan time.Duration
+	dispatcher            *Dispatcher
+	currentJobID          *atomic.Uint64
 	logger                *slog.Logger
 }
 
@@ -63,7 +66,6 @@ type ClientCMSubmission struct {
 	data       []byte
 	ctx        context.Context
 	ctxCancelF context.CancelFunc
-	returnChan chan []byte
 }
 
 type serverListResponse struct {
@@ -78,6 +80,11 @@ type serverListResponse struct {
 			WTDLoad        float64 `json:"wtd_load"`
 		} `json:"serverlist"`
 	} `json:"response"`
+}
+
+type payloadResult struct {
+	data []byte
+	err  error
 }
 
 func NewSteamConnection(noResponseTimeout time.Duration, logger *slog.Logger) *SteamConnection {
@@ -95,6 +102,8 @@ func NewSteamConnection(noResponseTimeout time.Duration, logger *slog.Logger) *S
 		netLoopCancel:         cancel,
 		heartbeatIntervalChan: make(chan time.Duration),
 		logger:                logger,
+		currentJobID:          &atomic.Uint64{},
+		dispatcher:            NewDispatcher(logger),
 	}
 }
 
@@ -123,8 +132,8 @@ func (c *SteamConnection) StartNetLoop() error {
 		return ErrConnNotEncrypted
 	}
 
-	c.netLoopMut.RLock()
-	defer c.netLoopMut.RUnlock()
+	c.netLoopMut.Lock()
+	defer c.netLoopMut.Unlock()
 
 	select {
 	case <-c.netLoopCtx.Done():
@@ -132,12 +141,31 @@ func (c *SteamConnection) StartNetLoop() error {
 		return ErrNetLoopAlreadyRunning
 	}
 
-	go c.netLoop()
+	c.logger.Info("initializing netloop")
+	c.netLoopCtx, c.netLoopCancel = context.WithCancelCause(context.Background())
+
+	go c.netLoopRead()
+	go c.netLoopWrite()
 	c.logger.Info("netloop started")
 	return nil
 }
 
-func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context, error) {
+func (c *SteamConnection) StopNetLoop(cancelErr error) error {
+	c.netLoopMut.Lock()
+	defer c.netLoopMut.Unlock()
+
+	select {
+	case <-c.netLoopCtx.Done():
+		return ErrNetLoopNotRunning
+	default:
+	}
+
+	c.netLoopCancel(cancelErr)
+
+	return nil
+}
+
+func (c *SteamConnection) SubmitCMMsg(message Message) (chan Message, context.Context, error) {
 	c.netLoopMut.RLock()
 	defer c.netLoopMut.RUnlock()
 	select {
@@ -146,18 +174,31 @@ func (c *SteamConnection) SubmitCMMsg(data []byte) (chan []byte, context.Context
 	default:
 	}
 
-	returnChan := make(chan []byte, 1)
+	returnChan := make(chan Message, 1)
+	jobID := c.currentJobID.Add(1)
+	err := c.dispatcher.Register(jobID, returnChan)
+	if err != nil {
+		c.logger.Debug("error registering jobID to dispatcher", "jobID", jobID, "err", err)
+		return nil, nil, err
+	}
+	message.SetSourceJobID(jobID)
+
 	ctx, ctxCancelF := context.WithTimeout(context.Background(), DefaultCMSubmissionTimeout*time.Second)
 	submission := ClientCMSubmission{
 		ctx:        ctx,
 		ctxCancelF: ctxCancelF,
-		returnChan: returnChan,
 	}
-	submission.data = make([]byte, len(data))
-	copy(submission.data, data)
+
+	msgData, err := message.Bytes()
+	if err != nil {
+		c.logger.Debug("error decoding message to bytes", "err", err)
+		return nil, nil, err
+	}
+	submission.data = make([]byte, len(msgData))
+	copy(submission.data, msgData)
 
 	c.clientCMSubmits <- submission
-	c.logger.Debug("queued CM message", "data_len", len(data))
+	c.logger.Debug("queued CM message", "data_len", len(msgData))
 	return returnChan, ctx, nil
 }
 
@@ -182,22 +223,52 @@ func (c *SteamConnection) SetConnTimeout(timeout time.Duration, applyNow bool) {
 	c.logger.Debug("set connection timeout", "timeout", timeout)
 }
 
-func (c *SteamConnection) netLoop() {
-	c.logger.Info("initializing netloop")
-	c.netLoopMut.Lock()
-	c.netLoopCtx, c.netLoopCancel = context.WithCancelCause(context.Background())
-	c.netLoopMut.Unlock()
+func (c *SteamConnection) getPayloadAsync(returnChan chan<- payloadResult) {
+	// This will block until a full payload is read
+	data, err := c.getPayload()
+	returnChan <- payloadResult{data: data, err: err}
+}
 
-	var err error
+func (c *SteamConnection) netLoopRead() {
+	// exitErr is the error to be set if and only if the netloop must quit
+	// due to an irrecoverable error, otherwise nil
+	var exitErr error
 
+	// Stub for now
+	cleanupF := func() {
+		c.logger.Debug("deconstructing netLoopRead", "err", exitErr)
+	}
+	defer cleanupF()
+
+	payloadAsyncChan := make(chan payloadResult, 1)
+	for {
+		go c.getPayloadAsync(payloadAsyncChan)
+
+		select {
+		case payload := <-payloadAsyncChan:
+			if payload.err != nil {
+				c.logger.Debug("got error while reading payload", "err", payload.err)
+				// TODO: better error handling for cases such as timeouts
+				exitErr = payload.err
+				return
+			}
+			err := c.dispatcher.DispatchMessage(payload.data)
+			if err != nil {
+				c.logger.Debug("got error while dispatching message; continuing", "err", err)
+			}
+		case <-c.netLoopCtx.Done():
+			return
+		}
+	}
+}
+
+func (c *SteamConnection) netLoopWrite() {
+	var exitErr error
 	var heartbeatChan <-chan time.Time
 	var t *time.Ticker
 
-	cleanupFunc := func() {
-		c.logger.Info("deconstructing netloop")
-		c.netLoopMut.Lock()
-		defer c.netLoopMut.Unlock()
-		c.netLoopCancel(err)
+	cleanupF := func() {
+		c.logger.Debug("deconstucting netLoopWrite", "err", exitErr)
 		if t != nil {
 			t.Stop()
 			t = nil
@@ -216,15 +287,13 @@ func (c *SteamConnection) netLoop() {
 			}
 		}
 	}
-	defer cleanupFunc()
+	defer cleanupF()
 
-	c.logger.Info("starting netloop")
 	for {
-		// There are heartbeats but I have not read the SteamKit source for heartbeats
-		// nor implemented anything for it just yet
 		select {
 		case clientSubmission := <-c.clientCMSubmits:
 			c.logger.Debug("handling outgoing CM message")
+
 			select {
 			case <-clientSubmission.ctx.Done():
 				// Skip if the client is timed-out or was canceled
@@ -232,23 +301,15 @@ func (c *SteamConnection) netLoop() {
 				continue
 			default:
 			}
+
 			c.logger.Debug("sending outgoing CM message")
-			err = c.sendPayload(clientSubmission.data)
+			err := c.sendPayload(clientSubmission.data)
 			// TODO: handle the various errors this could return
 			if err != nil {
+				exitErr = err
 				return
 			}
 			c.logger.Debug("done sending outgoing CM message")
-
-			c.logger.Debug("fetching response payload")
-			data, err := c.getPayload()
-			if err != nil {
-				return
-			}
-			c.logger.Debug("done fetching response payload")
-
-			clientSubmission.returnChan <- data
-			c.logger.Debug("returned response payload", "data_len", len(data))
 		case interval := <-c.heartbeatIntervalChan:
 			// Submitting an interval <= 0 acts as a sentinel value to ensure that the ticker
 			// completely stops instead of constnatly ticking away or being re-used after being stopped
