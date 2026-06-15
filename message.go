@@ -23,6 +23,8 @@ type Message interface {
 	Body() ([]byte, error)
 	Bytes() ([]byte, error)
 	Proto() proto.Message
+	SetSourceJobID(uint64)
+	GetTargetJobID() uint64
 }
 
 type connectionHeader struct {
@@ -168,6 +170,14 @@ func (h *msgHeader) Bytes() ([]byte, error) {
 	return fullBytes, nil
 }
 
+func (h *msgHeader) SetSourceJobID(val uint64) {
+	h.sourceJobID = val
+}
+
+func (h *msgHeader) GetTargetJobID() uint64 {
+	return h.targetJobID
+}
+
 // Bytes will return the header in wire-format using Little-Endian encoding.
 // Bytes will also ensure that the EMsg has the correct bit set to indicate that it is
 // a protobuf message.
@@ -209,6 +219,14 @@ func (h *msgHeaderPB) ProtoHeader() *steamproto.CMsgProtoBufHeader {
 	return h.header
 }
 
+func (h *msgHeaderPB) SetSourceJobID(val uint64) {
+	h.header.JobidSource = &val
+}
+
+func (h *msgHeaderPB) GetTargetJobID() uint64 {
+	return h.header.GetJobidTarget()
+}
+
 func (h *extendedMsgHeader) EMsg() EMsg {
 	return h.emsg
 }
@@ -237,6 +255,14 @@ func (h *extendedMsgHeader) Bytes() ([]byte, error) {
 	bodyBytes, _ := h.Body()
 	fullBytes = append(fullBytes, bodyBytes...)
 	return fullBytes, nil
+}
+
+func (h *extendedMsgHeader) SetSourceJobID(val uint64) {
+	h.sourceJobID = val
+}
+
+func (h *extendedMsgHeader) GetTargetJobID() uint64 {
+	return h.targetJobID
 }
 
 func UnpackCMsgMultiToBytes(msg *steamproto.CMsgMulti) ([][]byte, error) {
