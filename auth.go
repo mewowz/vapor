@@ -1,8 +1,6 @@
 package vapor
 
 import (
-	"context"
-	"errors"
 	"log/slog"
 	"time"
 
@@ -34,125 +32,59 @@ func NewAnonymousAuthenticator(steamConn *SteamConnection) *AnonymousAuthenticat
 }
 
 func (auth *AnonymousAuthenticator) Logon() error {
-	// This expects to receive a ClientLogOnResponse and then ClientLicenseList
-	// is sent by the server automatically immediately afterwards
 	auth.logger.Info("anonymously logging into steam CM server")
-	returnChan, ctx, err := auth.submitClientLogon()
+
+	logOnResponseListener, err := auth.steamConn.GetListenerForEMsg(EMsgClientLogOnResponse)
 	if err != nil {
 		return err
 	}
 
-	responseHeaderBytes, err := readReturnChan(returnChan, ctx)
-	if err != nil {
-		return err
-	}
-	auth.logger.Debug("got response header", "len", len(responseHeaderBytes))
-
-	responseHeader, err := NewMsgHeaderPBFromBytes(responseHeaderBytes)
-	if err != nil {
-		return err
-	}
-	// We are expecting a Multi from Steam
-	// Something went wrong if it sends something else back
-	if responseHeader.EMsg != EMsgMulti {
-		return ErrBadEMsgResponse
-	}
-	cmsgMultiRaw, ok := responseHeader.Body.(*steamproto.CMsgMulti)
-	if !ok {
-		return ErrMalformedPayload
-	}
-
-	cmsgMultiBytes, err := UnpackCMsgMultiToBytes(*cmsgMultiRaw)
+	// Submit the ClientLogon and wait for Steam to respond
+	err = auth.submitClientLogon()
 	if err != nil {
 		return err
 	}
 
-	auth.logger.Debug("handling response(s) from steam")
-	responses := make(map[EMsg]*msgHeaderPB)
-	for _, msg := range cmsgMultiBytes {
-		response, err := NewMsgHeaderPBFromBytes(msg)
-		if err != nil {
-			if errors.Is(err, ErrNoProtoForEMsg) {
-				continue
-			} else {
-				return err
-			}
-		}
-		_, alreadyExists := responses[response.EMsg]
-		if alreadyExists {
-			return ErrDuplicateEMsgInMulti
-		} else {
-			responses[response.EMsg] = response
-		}
-	}
-
-	emsgHandlers := map[EMsg]func(msgHeaderPB) error{
-		EMsgClientLogOnResponse: auth.handleClientLogOnResponse,
-		// TODO: handle all known incoming messages in response
-		// to a CMsgClientLogon
-		// EMsgClientLicenseList:   auth.handleClientLicenseList,
-	}
-	for emsg, msgHeader := range responses {
-		emsgHandler, ok := emsgHandlers[emsg]
-		if !ok {
-			continue
-		} else {
-			delete(emsgHandlers, emsg)
-		}
-		err := emsgHandler(*msgHeader)
+	select {
+	case message := <-logOnResponseListener.Read():
+		err = auth.handleClientLogOnResponse(message)
 		if err != nil {
 			return err
 		}
+	case <-logOnResponseListener.Done():
+		return ErrReturnChanCtxTimeout
 	}
 
-	if len(emsgHandlers) != 0 {
-		return ErrMissingMessageFromMulti
-	}
-
-	auth.logger.Info("anonymous logon successful")
 	return nil
 }
 
-func (auth *AnonymousAuthenticator) submitClientLogon() (chan []byte, context.Context, error) {
+func (auth *AnonymousAuthenticator) submitClientLogon() error {
 	clientLogon := steamproto.CMsgClientLogon{
 		ProtocolVersion:      proto.Uint32(66580),
 		ClientPackageVersion: proto.Uint32(1561159470),
 	}
 	clientLogonHeader, err := NewMsgHeaderPB(EMsgClientLogon, &clientLogon)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
-	clientLogonHeader.Header.Steamid = proto.Uint64(uint64(10)<<52 | uint64(1)<<56)
+	clientLogonHeader.header.Steamid = proto.Uint64(uint64(10)<<52 | uint64(1)<<56)
 
-	auth.logger.Debug("submitting client logon", "clientLogon", clientLogon)
-	clientLogonHeaderBytes, err := clientLogonHeader.Bytes()
-	if err != nil {
-		return nil, nil, err
-	}
-	returnChan, ctx, err := auth.steamConn.SubmitCMMsg(clientLogonHeaderBytes)
-	if err != nil {
-		return nil, nil, err
-	}
-	return returnChan, ctx, nil
+	auth.logger.Debug(
+		"submitting client logon",
+		"protocol_version", clientLogon.ProtocolVersion,
+		"client_package_version", clientLogon.ClientPackageVersion,
+	)
+	err = auth.steamConn.SubmitCMMsg(clientLogonHeader)
+	return err
 }
 
-func (auth *AnonymousAuthenticator) handleClientLicenseList(licenseListMsgHeader msgHeaderPB) error {
-	// TODO: Move or delete this function. Currently unused due to the new changes and
-	// realizing we don't actually receive a CMsgClientLicesnseList from steam after a CMsgClientLogon
-	licenseList := licenseListMsgHeader.Body.(*steamproto.CMsgClientLicenseList)
-	if licenseList.GetEresult() != 1 {
-		return ErrBadEResult
-	}
-	auth.licenseList = licenseList.GetLicenses()
-	return nil
-}
-
-func (auth *AnonymousAuthenticator) handleClientLogOnResponse(logonResponseMsgHeader msgHeaderPB) error {
+func (auth *AnonymousAuthenticator) handleClientLogOnResponse(message Message) error {
 	// TODO: handle logonResponse.Eresult == 48 to try another
 	// CM server. Needs to signal to the auth.steamConn to close the connection,
 	// mark it as "bad," and try another CM server from the CM server list
-	logonResponseHeader := logonResponseMsgHeader.Header
-	logonResponse := logonResponseMsgHeader.Body.(*steamproto.CMsgClientLogonResponse)
+	logonResponseMsg := message.(*msgHeaderPB)
+	logonResponseHeader := logonResponseMsg.header
+	logonResponse := logonResponseMsg.Proto().(*steamproto.CMsgClientLogonResponse)
 	if logonResponse.GetEresult() != 1 {
 		return ErrBadEResult
 	}
@@ -166,14 +98,4 @@ func (auth *AnonymousAuthenticator) handleClientLogOnResponse(logonResponseMsgHe
 	// TODO: find a better timeout to set after receiving the heartbeat interval
 	auth.steamConn.SetConnTimeout(auth.connInfo.HeartbeatDuration+(5*time.Second), false)
 	return nil
-}
-
-func readReturnChan(returnChan chan []byte, ctx context.Context) ([]byte, error) {
-	// TODO: rename this function to something better - naming feels ambiguous
-	select {
-	case response := <-returnChan:
-		return response, nil
-	case <-ctx.Done():
-		return nil, ErrReturnChanCtxTimeout
-	}
 }
