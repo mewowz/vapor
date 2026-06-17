@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/http"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/mewowz/vapor/internal/steamproto"
@@ -52,20 +51,13 @@ type SteamConnection struct {
 	conn                  net.Conn
 	encFilter             MessageFilter
 	writeMut              sync.Mutex
-	clientCMSubmits       chan ClientCMSubmission
+	clientCMSubmits       chan []byte
 	netLoopCtx            context.Context
 	netLoopCancel         context.CancelCauseFunc
 	netLoopMut            sync.RWMutex
 	heartbeatIntervalChan chan time.Duration
 	dispatcher            *Dispatcher
-	currentJobID          *atomic.Uint64
 	logger                *slog.Logger
-}
-
-type ClientCMSubmission struct {
-	data       []byte
-	ctx        context.Context
-	ctxCancelF context.CancelFunc
 }
 
 type serverListResponse struct {
@@ -96,13 +88,12 @@ func NewSteamConnection(noResponseTimeout time.Duration, logger *slog.Logger) *S
 	return &SteamConnection{
 		connTimeout:           noResponseTimeout,
 		connState:             Disconnected,
-		clientCMSubmits:       make(chan ClientCMSubmission, 32),
+		clientCMSubmits:       make(chan []byte, 32),
 		encFilter:             emptyFilter{},
 		netLoopCtx:            ctx,
 		netLoopCancel:         cancel,
 		heartbeatIntervalChan: make(chan time.Duration),
 		logger:                logger,
-		currentJobID:          &atomic.Uint64{},
 		dispatcher:            NewDispatcher(logger),
 	}
 }
@@ -165,41 +156,27 @@ func (c *SteamConnection) StopNetLoop(cancelErr error) error {
 	return nil
 }
 
-func (c *SteamConnection) SubmitCMMsg(message Message) (chan Message, context.Context, error) {
+func (c *SteamConnection) SubmitCMMsg(message Message) error {
 	c.netLoopMut.RLock()
 	defer c.netLoopMut.RUnlock()
 	select {
 	case <-c.netLoopCtx.Done():
-		return nil, nil, ErrNetLoopNotRunning
+		return ErrNetLoopNotRunning
 	default:
-	}
-
-	returnChan := make(chan Message, 1)
-	jobID := c.currentJobID.Add(1)
-	err := c.dispatcher.Register(jobID, returnChan)
-	if err != nil {
-		c.logger.Debug("error registering jobID to dispatcher", "jobID", jobID, "err", err)
-		return nil, nil, err
-	}
-	message.SetSourceJobID(jobID)
-
-	ctx, ctxCancelF := context.WithTimeout(context.Background(), DefaultCMSubmissionTimeout*time.Second)
-	submission := ClientCMSubmission{
-		ctx:        ctx,
-		ctxCancelF: ctxCancelF,
 	}
 
 	msgData, err := message.Bytes()
 	if err != nil {
 		c.logger.Debug("error decoding message to bytes", "err", err)
-		return nil, nil, err
+		return err
 	}
-	submission.data = make([]byte, len(msgData))
-	copy(submission.data, msgData)
+	c.clientCMSubmits <- msgData
+	return nil
+}
 
-	c.clientCMSubmits <- submission
-	c.logger.Debug("queued CM message", "data_len", len(msgData))
-	return returnChan, ctx, nil
+func (c *SteamConnection) GetListenerForEMsg(emsg EMsg) (*EMsgListener, error) {
+	listener, err := c.dispatcher.Register(emsg)
+	return listener, err
 }
 
 func (c *SteamConnection) SetHeartbeatInterval(interval time.Duration) error {
@@ -275,17 +252,7 @@ func (c *SteamConnection) netLoopWrite() {
 			heartbeatChan = nil
 		}
 		c.logger.Debug("deconstructed heartbeat ticker and chan")
-		i := 0
-		for {
-			select {
-			case client := <-c.clientCMSubmits:
-				client.ctxCancelF()
-				i += 1
-			default:
-				c.logger.Debug("canceled remaining CM queue", "cancel_count", i)
-				return
-			}
-		}
+		c.dispatcher.cancelAllListeners()
 	}
 	defer cleanupF()
 
@@ -294,16 +261,8 @@ func (c *SteamConnection) netLoopWrite() {
 		case clientSubmission := <-c.clientCMSubmits:
 			c.logger.Debug("handling outgoing CM message")
 
-			select {
-			case <-clientSubmission.ctx.Done():
-				// Skip if the client is timed-out or was canceled
-				c.logger.Debug("skipping client message submission", "reason", "context is done")
-				continue
-			default:
-			}
-
 			c.logger.Debug("sending outgoing CM message")
-			err := c.sendPayload(clientSubmission.data)
+			err := c.sendPayload(clientSubmission)
 			// TODO: handle the various errors this could return
 			if err != nil {
 				exitErr = err
