@@ -4,12 +4,18 @@ package vapor
 
 import (
 	"context"
+	"log/slog"
+	"os"
 	"testing"
 	"time"
 )
 
 func TestAnonymousLogon(t *testing.T) {
-	steamConn := NewSteamConnection(10*time.Second, nil)
+	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})
+	logger := slog.New(handler)
+	steamConn := NewSteamConnection(10*time.Second, logger)
 	err := steamConn.CMConnect(10 * time.Second)
 	if err != nil {
 		t.Fatalf("CMConnect failed: %v", err)
