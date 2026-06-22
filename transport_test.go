@@ -183,13 +183,13 @@ func TestNewMsgHeaderPBRoundTrip(t *testing.T) {
 			headerPBBytes, protoMsgFromBytes, err,
 		)
 	}
-	if protoMsgFromBytes.EMsg != EMsgClientHello {
+	if protoMsgFromBytes.EMsg() != EMsgClientHello {
 		t.Fatalf(
 			"protoMSgFromBytes.EMsg = %v != %v = EMsgClientHello",
-			protoMsgFromBytes.EMsg, EMsgClientHello,
+			protoMsgFromBytes.EMsg(), EMsgClientHello,
 		)
 	}
-	if !proto.Equal(&protoMsg, protoMsgFromBytes.Body) {
+	if !proto.Equal(&protoMsg, protoMsgFromBytes.Proto()) {
 		t.Fatalf(
 			"NewMsgHeaderPBFromBytes(%v) = %v, proto.Equal(%v, %v) == false, "+
 				"want proto.Equal(&protoMsg, protoMsgFromBytes.Body) == true",
