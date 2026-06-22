@@ -66,11 +66,7 @@ func (d *Dispatcher) DispatchMessage(msgBytes []byte) error {
 			err = d.dispatchMulti(message)
 			return err
 		}
-		d.logger.Debug(
-			"got Message to dispatch",
-			"sourceJobID", message.header.GetJobidSource(),
-			"targetJobID", message.header.GetJobidTarget(),
-		)
+		d.logger.Debug("got Message to dispatch", "EMsg", emsg)
 		err = d.writeMessageToCaller(message)
 		return err
 	}
@@ -92,6 +88,7 @@ func (d *Dispatcher) DispatchMessage(msgBytes []byte) error {
 }
 
 func (d *Dispatcher) dispatchMulti(message *msgHeaderPB) error {
+	d.logger.Debug("dispatching EMsgMulti")
 	// For now, I want this to pacnic if the body isn't a CMsgMulti because
 	// that'll mean Steam, for some reason, sent EMsg = 1 without a correct body.
 	// Then, I'll implement some handler, but I'll defer that for now
