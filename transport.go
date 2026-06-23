@@ -44,6 +44,8 @@ const (
 	Encrypted
 )
 
+type EResult int32
+
 type SteamConnection struct {
 	connTimeout           time.Duration
 	connState             ConnectionState
