@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/binary"
+	"io"
 
 	"github.com/mewowz/vapor/internal/steamproto"
 	"google.golang.org/protobuf/proto"
@@ -73,6 +74,7 @@ func NewMsgHeaderPBFromBytes(data []byte) (*msgHeaderPB, error) {
 
 	headerSizeBytes := binary.LittleEndian.Uint32(data[4:8])
 	pbHeader := steamproto.CMsgProtoBufHeader{}
+
 	err := proto.Unmarshal(data[8:8+headerSizeBytes], &pbHeader)
 	if err != nil {
 		return nil, err
@@ -298,7 +300,7 @@ func gzipDecompress(data []byte, unzippedSize uint32) ([]byte, error) {
 		return nil, err
 	}
 	decompressedData := make([]byte, unzippedSize)
-	_, err = zr.Read(decompressedData)
+	_, err = io.ReadFull(zr, decompressedData)
 	if err != nil {
 		return nil, err
 	}
