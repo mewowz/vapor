@@ -92,33 +92,16 @@ func NewMsgHeaderPBFromBytes(data []byte) (*msgHeaderPB, error) {
 }
 
 func NewPBFromEMsg(emsg EMsg, data []byte) (proto.Message, error) {
-	switch emsg {
-	case EMsgMulti:
-		var msg steamproto.CMsgMulti
-		err := proto.Unmarshal(data, &msg)
-		return &msg, err
-	case EMsgClientHello:
-		var msg steamproto.CMsgClientHello
-		err := proto.Unmarshal(data, &msg)
-		return &msg, err
-	case EMsgClientLogon:
-		var msg steamproto.CMsgClientLogon
-		err := proto.Unmarshal(data, &msg)
-		return &msg, err
-	case EMsgClientLogOnResponse:
-		var msg steamproto.CMsgClientLogonResponse
-		err := proto.Unmarshal(data, &msg)
-		return &msg, err
-	case EMsgClientLicenseList:
-		var msg steamproto.CMsgClientLicenseList
-		err := proto.Unmarshal(data, &msg)
-		return &msg, err
-	case EMsgClientHeartBeat:
-		var msg steamproto.CMsgClientHeartBeat
-		err := proto.Unmarshal(data, &msg)
-		return &msg, err
+	emsgFactory, ok := emsgToCMsg[emsg]
+	if !ok {
+		return nil, ErrNoProtoForEMsg
 	}
-	return nil, ErrNoProtoForEMsg
+	msg := emsgFactory()
+	err := proto.Unmarshal(data, msg)
+	if err != nil {
+		return nil, err
+	}
+	return msg, nil
 }
 
 func NewExtendedMsgHeaderFromBytes(data []byte) *extendedMsgHeader {
