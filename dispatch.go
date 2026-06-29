@@ -104,8 +104,9 @@ func (d *Dispatcher) dispatchMulti(message *msgHeaderPB) error {
 			emsg := rawEmsg & 0x7FFFFFFF
 			d.logger.Debug("no proto handler for EMsg", "EMsg", emsg)
 			continue
-		}
-		if err != nil {
+		} else if errors.Is(err, ErrNoChanForJob) {
+			continue
+		} else {
 			return err
 		}
 	}
