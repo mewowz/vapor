@@ -6,16 +6,18 @@ import (
 	"errors"
 	"log/slog"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/mewowz/vapor/internal/steamproto"
 )
 
 type EMsgListener struct {
-	emsg       EMsg
-	returnChan chan Message
-	ctx        context.Context
-	ctxCancelF context.CancelFunc
+	emsg        EMsg
+	returnChan  chan Message
+	ctx         context.Context
+	ctxCancelF  context.CancelFunc
+	retainInMap atomic.Bool
 }
 
 type Dispatcher struct {
@@ -51,6 +53,8 @@ func (l *EMsgListener) Done() <-chan struct{} {
 }
 
 func (d *Dispatcher) DispatchMessage(msgBytes []byte) error {
+	d.cleanupDispatchMap()
+
 	rawEmsg := EMsg(binary.LittleEndian.Uint32(msgBytes[:4]))
 	isProto := rawEmsg&0x80000000 != 0
 	emsg := rawEmsg & 0x7FFFFFFF
@@ -114,6 +118,7 @@ func (d *Dispatcher) dispatchMulti(message *msgHeaderPB) error {
 }
 
 func (d *Dispatcher) Register(emsg EMsg) (*EMsgListener, error) {
+	d.cleanupDispatchMap()
 	_, exists := d.emsgChanMap[emsg]
 	if exists {
 		return nil, ErrJobIDAlreadyInDispatcher
@@ -137,7 +142,10 @@ func (d *Dispatcher) writeMessageToCaller(message Message) error {
 		panic("returnChan is never allowed to block")
 	}
 	//delete(d.emsgChanMap, message.EMsg())
-	d.removeListener(listener)
+
+	if !listener.retainInMap.Load() {
+		d.removeListener(listener)
+	}
 	return nil
 }
 
@@ -148,6 +156,19 @@ func (d *Dispatcher) removeListener(listener *EMsgListener) {
 			d.listeners = d.listeners[:len(d.listeners)-1]
 			delete(d.emsgChanMap, listener.emsg)
 			break
+		}
+	}
+}
+
+func (d *Dispatcher) cleanupDispatchMap() {
+	listenerListCopy := make([]*EMsgListener, len(d.listeners))
+	copy(listenerListCopy, d.listeners)
+	for _, listener := range listenerListCopy {
+		select {
+		case <-listener.Done():
+			d.removeListener(listener)
+		default:
+			continue
 		}
 	}
 }
