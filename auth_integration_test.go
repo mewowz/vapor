@@ -57,6 +57,7 @@ func TestPasswordLogonNo2FA(t *testing.T) {
 		Level: slog.LevelDebug,
 	})
 	logger := slog.New(handler)
+	logger.Debug("sending credentials", "username", username, "password", password)
 	steamConn := NewSteamConnection(10*time.Second, logger)
 	err := steamConn.CMConnect(10 * time.Second)
 	if err != nil {
