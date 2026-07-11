@@ -46,6 +46,11 @@ const (
 
 type EResult int32
 
+type CMMessenger interface {
+	GetListenerForEMsg(EMsg) (*EMsgListener, error)
+	SubmitCMMsg(Message) error
+}
+
 type SteamConnection struct {
 	connTimeout           time.Duration
 	connState             ConnectionState

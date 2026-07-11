@@ -35,9 +35,7 @@ func TestAnonymousLogon(t *testing.T) {
 		t.Fatalf("StartNetLoop failed: %v", err)
 	}
 
-	auth := NewAnonymousAuthenticator(steamConn)
-
-	err = auth.Logon()
+	_, err = LogonAnonymous(steamConn, logger)
 	if err != nil {
 		t.Fatalf("auth.Logon failed: %v", err)
 	}
@@ -78,9 +76,8 @@ func TestPasswordLogonNo2FA(t *testing.T) {
 		t.Fatalf("StartNetLoop failed: %v", err)
 	}
 
-	auth := NewAuthenticator(steamConn)
 	credentials := LogonCredentials{username: username, password: password}
-	err = auth.Logon(&credentials)
+	_, err = LogonCredentialed(steamConn, logger, &credentials)
 	if err != nil {
 		t.Fatalf("auth.Logon failed: %v", err)
 	}

@@ -35,9 +35,7 @@ func TestRequestProductInfoAnonymous(t *testing.T) {
 		t.Fatalf("StartNetLoop failed: %v", err)
 	}
 
-	auth := NewAnonymousAuthenticator(steamConn)
-
-	err = auth.Logon()
+	authConnInfo, err := LogonAnonymous(steamConn, logger)
 	if err != nil {
 		t.Fatalf("auth.Logon failed: %v", err)
 	}
@@ -47,7 +45,7 @@ func TestRequestProductInfoAnonymous(t *testing.T) {
 		[]uint32{},
 		steamConn,
 		logger,
-		auth.connInfo,
+		authConnInfo,
 	)
 	if err != nil {
 		t.Fatalf("RequestProductInfo failed: %v", err)
