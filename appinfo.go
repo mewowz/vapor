@@ -186,8 +186,6 @@ func submitPICSProductInfoRequest(
 	if err != nil {
 		return err
 	}
-	productRequestHeader.header.Steamid = proto.Uint64(authInfo.SteamID)
-	productRequestHeader.header.ClientSessionid = proto.Int32(authInfo.ClientSessionID)
 
 	logger.Debug("submitting ClientPICSProductInfoRequest", "EMsg", EMsgClientPICSProductInfoRequest)
 

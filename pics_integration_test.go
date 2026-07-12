@@ -40,6 +40,8 @@ func TestRequestProductInfoAnonymous(t *testing.T) {
 		t.Fatalf("auth.Logon failed: %v", err)
 	}
 
+	steamConn.setConnectionInfo(&authConnInfo)
+
 	appInfos, _, err := RequestProductInfo(
 		[]uint32{730},
 		[]uint32{},

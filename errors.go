@@ -27,4 +27,5 @@ var (
 	ErrNoChanForJob             = errors.New("no return channel in dispatcher map")
 	ErrJobIDAlreadyInDispatcher = errors.New("jobID already exists in dispatcher map")
 	ErrNeedUsername             = errors.New("require a username field to be set")
+	ErrConnInfoNotNil           = errors.New("attempting to overwrite a non-nil connection info")
 )

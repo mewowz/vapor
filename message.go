@@ -26,6 +26,7 @@ type Message interface {
 	Proto() proto.Message
 	SetSourceJobID(uint64)
 	GetTargetJobID() uint64
+	SetConnectionInfo(authConnectionInfo)
 }
 
 type connectionHeader struct {
@@ -163,6 +164,10 @@ func (h *msgHeader) GetTargetJobID() uint64 {
 	return h.targetJobID
 }
 
+func (h *msgHeader) SetConnectionInfo(info authConnectionInfo) {
+	return
+}
+
 // Bytes will return the header in wire-format using Little-Endian encoding.
 // Bytes will also ensure that the EMsg has the correct bit set to indicate that it is
 // a protobuf message.
@@ -212,6 +217,11 @@ func (h *msgHeaderPB) GetTargetJobID() uint64 {
 	return h.header.GetJobidTarget()
 }
 
+func (h *msgHeaderPB) SetConnectionInfo(info authConnectionInfo) {
+	h.header.Steamid = proto.Uint64(info.SteamID)
+	h.header.ClientSessionid = proto.Int32(info.ClientSessionID)
+}
+
 func (h *extendedMsgHeader) EMsg() EMsg {
 	return h.emsg
 }
@@ -248,6 +258,11 @@ func (h *extendedMsgHeader) SetSourceJobID(val uint64) {
 
 func (h *extendedMsgHeader) GetTargetJobID() uint64 {
 	return h.targetJobID
+}
+
+func (h *extendedMsgHeader) SetConnectionInfo(info authConnectionInfo) {
+	h.steamID = info.SteamID
+	h.sessionID = info.ClientSessionID
 }
 
 func UnpackCMsgMultiToBytes(msg *steamproto.CMsgMulti) ([][]byte, error) {
