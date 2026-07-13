@@ -3,6 +3,7 @@ package vapor
 import (
 	"bytes"
 	"log/slog"
+	"maps"
 	"strconv"
 
 	vdfbinary "github.com/Jleagle/steam-go/steamvdf"
@@ -66,7 +67,7 @@ func RequestProductInfo(
 	}
 	logger.Debug(
 		"successfully obtained ClientPICSAccessTokenResponse",
-		"num appInfoRequests", len(appInfoRequests), "num packageInfoRequests", len(packageInfoRequests),
+		"len(appInfoRequests)", len(appInfoRequests), "len(packageInfoRequests)", len(packageInfoRequests),
 	)
 
 	productResponseListener, err := connection.GetListenerForEMsg(EMsgClientPICSProductInfoResponse)
@@ -81,7 +82,6 @@ func RequestProductInfo(
 		packageInfoRequests,
 		connection,
 		logger,
-		authInfo,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -101,12 +101,8 @@ productResponseLoop:
 				return nil, nil, err
 			}
 
-			for k, v := range appEntries {
-				apps[k] = v
-			}
-			for k, v := range packageEntries {
-				packages[k] = v
-			}
+			maps.Copy(apps, appEntries)
+			maps.Copy(packages, packageEntries)
 
 			productResponseProto := productResponse.Proto().(*steamproto.CMsgClientPICSProductInfoResponse)
 			if !productResponseProto.GetResponsePending() {
@@ -124,7 +120,6 @@ func handlePICSProductInfoResponse(
 	message Message,
 ) (map[string]AppEntry, map[string]PackageEntry, error) {
 	productResponseProto := message.Proto().(*steamproto.CMsgClientPICSProductInfoResponse)
-	// So ugly
 	apps := map[string]AppEntry{}
 	packages := map[string]PackageEntry{}
 
@@ -170,16 +165,12 @@ func submitPICSProductInfoRequest(
 	packageInfoRequests []*PackageInfoRequest,
 	connection *SteamConnection,
 	logger *slog.Logger,
-	authInfo authConnectionInfo,
 ) error {
 	productRequest := &steamproto.CMsgClientPICSProductInfoRequest{
 		Apps:          appInfoRequests,
 		Packages:      packageInfoRequests,
 		MetaDataOnly:  proto.Bool(false),
 		NumPrevFailed: proto.Uint32(0),
-		// This is marked as obsolete, but other implementations send it anyway
-		// See steam-python's implementation for an example
-		// OBSOLETESupportsPackageTokens: proto.Uint32(1),
 	}
 
 	productRequestHeader, err := NewMsgHeaderPB(EMsgClientPICSProductInfoRequest, productRequest)
