@@ -55,7 +55,7 @@ type SteamConnection struct {
 	connTimeout           time.Duration
 	connState             ConnectionState
 	connReader            *bufio.Reader
-	connInfo              *authConnectionInfo
+	authInfo              *authConnectionInfo
 	conn                  net.Conn
 	encFilter             MessageFilter
 	writeMut              sync.Mutex
@@ -173,8 +173,8 @@ func (c *SteamConnection) SubmitCMMsg(message Message) error {
 	default:
 	}
 
-	if c.connInfo != nil {
-		message.SetConnectionInfo(*c.connInfo)
+	if c.authInfo != nil {
+		message.SetConnectionInfo(*c.authInfo)
 	}
 
 	msgData, err := message.Bytes()
@@ -425,16 +425,16 @@ func (c *SteamConnection) sendPayload(rawPayload []byte) error {
 	return err
 }
 
-func (c *SteamConnection) setConnectionInfo(connInfo *authConnectionInfo) error {
-	if c.connInfo != nil {
+func (c *SteamConnection) setConnectionInfo(authInfo *authConnectionInfo) error {
+	if c.authInfo != nil {
 		return ErrConnInfoNotNil
 	}
-	c.connInfo = connInfo
+	c.authInfo = authInfo
 	return nil
 }
 
 func (c *SteamConnection) clearConnectionInfo() {
-	c.connInfo = nil
+	c.authInfo = nil
 }
 
 // getCMServerHost will pull from Steam's API for CM servers
