@@ -37,12 +37,12 @@ func LogonAnonymous(
 	if err != nil {
 		return authConnectionInfo{}, err
 	}
-	select {
-	case message := <-logOnResponseListener.Read():
-		return handleClientLogOnResponse(message, logger)
-	case <-logOnResponseListener.Done():
-		return authConnectionInfo{}, ErrReturnChanCtxTimeout
+
+	message, err := logOnResponseListener.Read()
+	if err != nil {
+		return authConnectionInfo{}, err
 	}
+	return handleClientLogOnResponse(message, logger)
 }
 
 func LogonCredentialed(
@@ -60,12 +60,11 @@ func LogonCredentialed(
 		return authConnectionInfo{}, err
 	}
 
-	select {
-	case message := <-logOnResponseListener.Read():
-		return handleClientLogOnResponse(message, logger)
-	case <-logOnResponseListener.Done():
-		return authConnectionInfo{}, ErrReturnChanCtxTimeout
+	message, err := logOnResponseListener.Read()
+	if err != nil {
+		return authConnectionInfo{}, err
 	}
+	return handleClientLogOnResponse(message, logger)
 }
 
 func submitCredentialedClientLogon(

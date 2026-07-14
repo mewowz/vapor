@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -18,6 +19,8 @@ type EMsgListener struct {
 	ctx         context.Context
 	ctxCancelF  context.CancelFunc
 	retainInMap atomic.Bool
+	mut         sync.Mutex
+	inUse       bool
 }
 
 type Dispatcher struct {
@@ -44,12 +47,42 @@ func NewEMsgListener(emsg EMsg) *EMsgListener {
 	return listener
 }
 
-func (l *EMsgListener) Read() <-chan Message {
-	return l.returnChan
+func (l *EMsgListener) Read() (Message, error) {
+	l.mut.Lock()
+	if l.inUse {
+		l.mut.Unlock()
+		return nil, ErrListenerConcurrentRead
+	}
+
+	l.inUse = true
+	ctx := l.ctx
+	l.mut.Unlock()
+
+	var message Message
+	var err error
+	select {
+	case message = <-l.returnChan:
+	case <-ctx.Done():
+		err = ErrReturnChanCtxTimeout
+	}
+
+	l.mut.Lock()
+	if err == nil {
+		l.ctx, l.ctxCancelF = context.WithTimeout(
+			context.Background(), DefaultCMSubmissionTimeout*time.Second,
+		)
+	}
+	l.inUse = false
+	l.mut.Unlock()
+
+	return message, err
 }
 
 func (l *EMsgListener) Done() <-chan struct{} {
-	return l.ctx.Done()
+	l.mut.Lock()
+	done := l.ctx.Done()
+	l.mut.Unlock()
+	return done
 }
 
 func (d *Dispatcher) DispatchMessage(msgBytes []byte) error {
@@ -164,11 +197,8 @@ func (d *Dispatcher) cleanupDispatchMap() {
 	listenerListCopy := make([]*EMsgListener, len(d.listeners))
 	copy(listenerListCopy, d.listeners)
 	for _, listener := range listenerListCopy {
-		select {
-		case <-listener.Done():
+		if listener.isDeadAndFree() {
 			d.removeListener(listener)
-		default:
-			continue
 		}
 	}
 }
@@ -182,5 +212,19 @@ func (d *Dispatcher) cancelAllListeners() {
 }
 
 func (l *EMsgListener) cancel() {
-	l.ctxCancelF()
+	l.mut.Lock()
+	cancel := l.ctxCancelF
+	l.mut.Unlock()
+	cancel()
+}
+
+func (l *EMsgListener) isDeadAndFree() bool {
+	l.mut.Lock()
+	defer l.mut.Unlock()
+	select {
+	case <-l.ctx.Done():
+		return !l.inUse
+	default:
+		return false
+	}
 }

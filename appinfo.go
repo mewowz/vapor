@@ -59,12 +59,12 @@ func RequestProductInfo(
 
 	var appInfoRequests []*AppInfoRequest
 	var packageInfoRequests []*PackageInfoRequest
-	select {
-	case tokenResponse := <-tokenResponseListener.Read():
-		appInfoRequests, packageInfoRequests = handlePICSAccessTokenResponse(tokenResponse)
-	case <-tokenResponseListener.Done():
-		return nil, nil, ErrReturnChanCtxTimeout
+
+	tokenResponse, err := tokenResponseListener.Read()
+	if err != nil {
+		return nil, nil, err
 	}
+	appInfoRequests, packageInfoRequests = handlePICSAccessTokenResponse(tokenResponse)
 	logger.Debug(
 		"successfully obtained ClientPICSAccessTokenResponse",
 		"len(appInfoRequests)", len(appInfoRequests), "len(packageInfoRequests)", len(packageInfoRequests),
@@ -93,23 +93,20 @@ func RequestProductInfo(
 
 productResponseLoop:
 	for {
-		select {
-		case productResponse := <-productResponseListener.Read():
-			logger.Debug("successfully obtained ClientPICSProductInfoResponse")
-			appEntries, packageEntries, err := handlePICSProductInfoResponse(productResponse)
-			if err != nil {
-				return nil, nil, err
-			}
+		productResponse, err := productResponseListener.Read()
+		if err != nil {
+			return nil, nil, err
+		}
 
-			maps.Copy(apps, appEntries)
-			maps.Copy(packages, packageEntries)
+		logger.Debug("successfully obtained ClientPICSProductInfoResponse")
+		appEntries, packageEntries, err := handlePICSProductInfoResponse(productResponse)
 
-			productResponseProto := productResponse.Proto().(*steamproto.CMsgClientPICSProductInfoResponse)
-			if !productResponseProto.GetResponsePending() {
-				break productResponseLoop
-			}
-		case <-productResponseListener.Done():
-			return nil, nil, ErrReturnChanCtxTimeout
+		maps.Copy(apps, appEntries)
+		maps.Copy(packages, packageEntries)
+
+		productResponseProto := productResponse.Proto().(*steamproto.CMsgClientPICSProductInfoResponse)
+		if !productResponseProto.GetResponsePending() {
+			break productResponseLoop
 		}
 	}
 
