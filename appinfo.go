@@ -100,6 +100,9 @@ productResponseLoop:
 
 		logger.Debug("successfully obtained ClientPICSProductInfoResponse")
 		appEntries, packageEntries, err := handlePICSProductInfoResponse(productResponse)
+		if err != nil {
+			return nil, nil, err
+		}
 
 		maps.Copy(apps, appEntries)
 		maps.Copy(packages, packageEntries)
