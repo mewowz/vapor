@@ -36,6 +36,12 @@ type PackageEntry struct {
 	Size         uint32
 }
 
+type productResponseLoopReturn struct {
+	appEntries     map[string]AppEntry
+	packageEntries map[string]PackageEntry
+	pending        bool
+}
+
 func RequestProductInfo(
 	appids []uint32,
 	packageids []uint32,
@@ -43,28 +49,15 @@ func RequestProductInfo(
 	logger *slog.Logger,
 	authInfo authConnectionInfo,
 ) (map[string]AppEntry, map[string]PackageEntry, error) {
-	tokenResponseListener, err := connection.GetListenerForEMsg(EMsgClientPICSAccessTokenResponse)
-	if err != nil {
-		return nil, nil, err
-	}
-	logger.Debug("obtained listener", "name", "ClientPICSAccessTokenResponse", "EMsg", EMsgClientPICSAccessTokenResponse)
-
-	err = submitPICSAccessTokenRequest(
-		appids, packageids, connection, logger,
+	appInfoRequests, packageInfoRequests, err := getInfoRequests(
+		appids,
+		packageids,
+		connection,
+		logger,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
-	logger.Debug("submitted ClientPICSAccessTokenRequest")
-
-	var appInfoRequests []*AppInfoRequest
-	var packageInfoRequests []*PackageInfoRequest
-
-	tokenResponse, err := tokenResponseListener.Read()
-	if err != nil {
-		return nil, nil, err
-	}
-	appInfoRequests, packageInfoRequests = handlePICSAccessTokenResponse(tokenResponse)
 	logger.Debug(
 		"successfully obtained ClientPICSAccessTokenResponse",
 		"len(appInfoRequests)", len(appInfoRequests), "len(packageInfoRequests)", len(packageInfoRequests),
@@ -91,29 +84,82 @@ func RequestProductInfo(
 	apps := make(map[string]AppEntry)
 	packages := make(map[string]PackageEntry)
 
-productResponseLoop:
 	for {
-		productResponse, err := productResponseListener.Read()
+		loopValue, err := productResponseLoop(productResponseListener, logger)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		logger.Debug("successfully obtained ClientPICSProductInfoResponse")
-		appEntries, packageEntries, err := handlePICSProductInfoResponse(productResponse)
-		if err != nil {
-			return nil, nil, err
-		}
+		maps.Copy(apps, loopValue.appEntries)
+		maps.Copy(packages, loopValue.packageEntries)
 
-		maps.Copy(apps, appEntries)
-		maps.Copy(packages, packageEntries)
-
-		productResponseProto := productResponse.Proto().(*steamproto.CMsgClientPICSProductInfoResponse)
-		if !productResponseProto.GetResponsePending() {
-			break productResponseLoop
+		if !loopValue.pending {
+			break
 		}
 	}
 
 	return apps, packages, nil
+}
+
+func productResponseLoop(
+	listener *EMsgListener,
+	logger *slog.Logger,
+) (*productResponseLoopReturn, error) {
+	productResponse, err := listener.Read()
+	if err != nil {
+		return &productResponseLoopReturn{
+			nil, nil, false,
+		}, err
+	}
+
+	logger.Debug("successfully obtained ClientPICSProductInfoResponse")
+	appEntries, packageEntries, err := handlePICSProductInfoResponse(productResponse)
+	if err != nil {
+		return &productResponseLoopReturn{
+			nil, nil, false,
+		}, err
+	}
+	productResponseProto := productResponse.Proto().(*steamproto.CMsgClientPICSProductInfoResponse)
+	pending := productResponseProto.GetResponsePending()
+
+	return &productResponseLoopReturn{
+		appEntries,
+		packageEntries,
+		pending,
+	}, nil
+}
+
+func getInfoRequests(
+	appids []uint32,
+	packageids []uint32,
+	connection *SteamConnection,
+	logger *slog.Logger,
+) ([]*AppInfoRequest, []*PackageInfoRequest, error) {
+	tokenResponseListener, err := connection.GetListenerForEMsg(EMsgClientPICSAccessTokenResponse)
+	if err != nil {
+		return nil, nil, err
+	}
+	logger.Debug("obtained listener", "name", "ClientPICSAccessTokenResponse", "EMsg", EMsgClientPICSAccessTokenResponse)
+
+	err = submitPICSAccessTokenRequest(
+		appids, packageids, connection, logger,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	logger.Debug("submitted ClientPICSAccessTokenRequest")
+
+	tokenResponse, err := tokenResponseListener.Read()
+	if err != nil {
+		return nil, nil, err
+	}
+	appInfoRequests, packageInfoRequests := handlePICSAccessTokenResponse(tokenResponse)
+	logger.Debug(
+		"successfully obtained ClientPICSAccessTokenResponse",
+		"len(appInfoRequests)", len(appInfoRequests), "len(packageInfoRequests)", len(packageInfoRequests),
+	)
+
+	return appInfoRequests, packageInfoRequests, nil
 }
 
 func handlePICSProductInfoResponse(
