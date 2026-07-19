@@ -9,11 +9,19 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+type AuthenticationType int
+
+const (
+	Anonymous AuthenticationType = iota
+	Credentialed
+)
+
 type authConnectionInfo struct {
 	ClientSessionID   int32
 	SteamID           uint64
 	CellID            uint32
 	HeartbeatDuration time.Duration
+	AuthType          AuthenticationType
 }
 
 type LogonCredentials struct {
@@ -42,7 +50,9 @@ func LogonAnonymous(
 	if err != nil {
 		return authConnectionInfo{}, err
 	}
-	return handleClientLogOnResponse(message, logger)
+	info, err := handleClientLogOnResponse(message, logger)
+	info.AuthType = Anonymous
+	return info, err
 }
 
 func LogonCredentialed(
@@ -64,7 +74,9 @@ func LogonCredentialed(
 	if err != nil {
 		return authConnectionInfo{}, err
 	}
-	return handleClientLogOnResponse(message, logger)
+	info, err := handleClientLogOnResponse(message, logger)
+	info.AuthType = Credentialed
+	return info, err
 }
 
 func submitCredentialedClientLogon(
