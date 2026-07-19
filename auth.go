@@ -12,7 +12,8 @@ import (
 type AuthenticationType int
 
 const (
-	Anonymous AuthenticationType = iota
+	Unauthenticated AuthenticationType = iota
+	Anonymous
 	Credentialed
 )
 
