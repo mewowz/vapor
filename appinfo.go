@@ -45,14 +45,14 @@ type productResponseLoopReturn struct {
 func RequestProductInfo(
 	appids []uint32,
 	packageids []uint32,
-	connection *SteamConnection,
+	conn CMMessenger,
 	logger *slog.Logger,
 	authInfo authConnectionInfo,
 ) (map[string]AppEntry, map[string]PackageEntry, error) {
 	appInfoRequests, packageInfoRequests, err := getInfoRequests(
 		appids,
 		packageids,
-		connection,
+		conn,
 		logger,
 	)
 	if err != nil {
@@ -63,7 +63,7 @@ func RequestProductInfo(
 		"len(appInfoRequests)", len(appInfoRequests), "len(packageInfoRequests)", len(packageInfoRequests),
 	)
 
-	productResponseListener, err := connection.GetListenerForEMsg(EMsgClientPICSProductInfoResponse)
+	productResponseListener, err := conn.GetListenerForEMsg(EMsgClientPICSProductInfoResponse)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -73,7 +73,7 @@ func RequestProductInfo(
 	err = submitPICSProductInfoRequest(
 		appInfoRequests,
 		packageInfoRequests,
-		connection,
+		conn,
 		logger,
 	)
 	if err != nil {
@@ -132,17 +132,17 @@ func productResponseLoop(
 func getInfoRequests(
 	appids []uint32,
 	packageids []uint32,
-	connection *SteamConnection,
+	conn CMMessenger,
 	logger *slog.Logger,
 ) ([]*AppInfoRequest, []*PackageInfoRequest, error) {
-	tokenResponseListener, err := connection.GetListenerForEMsg(EMsgClientPICSAccessTokenResponse)
+	tokenResponseListener, err := conn.GetListenerForEMsg(EMsgClientPICSAccessTokenResponse)
 	if err != nil {
 		return nil, nil, err
 	}
 	logger.Debug("obtained listener", "name", "ClientPICSAccessTokenResponse", "EMsg", EMsgClientPICSAccessTokenResponse)
 
 	err = submitPICSAccessTokenRequest(
-		appids, packageids, connection, logger,
+		appids, packageids, conn, logger,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -209,7 +209,7 @@ func handlePICSProductInfoResponse(
 func submitPICSProductInfoRequest(
 	appInfoRequests []*AppInfoRequest,
 	packageInfoRequests []*PackageInfoRequest,
-	connection *SteamConnection,
+	conn CMMessenger,
 	logger *slog.Logger,
 ) error {
 	productRequest := &steamproto.CMsgClientPICSProductInfoRequest{
@@ -226,7 +226,7 @@ func submitPICSProductInfoRequest(
 
 	logger.Debug("submitting ClientPICSProductInfoRequest", "EMsg", EMsgClientPICSProductInfoRequest)
 
-	err = connection.SubmitCMMsg(productRequestHeader)
+	err = conn.SubmitCMMsg(productRequestHeader)
 	return err
 }
 
@@ -263,7 +263,7 @@ func handlePICSAccessTokenResponse(
 func submitPICSAccessTokenRequest(
 	appids []uint32,
 	packageids []uint32,
-	connection *SteamConnection,
+	conn CMMessenger,
 	logger *slog.Logger,
 ) error {
 	tokenRequest := &steamproto.CMsgClientPICSAccessTokenRequest{
@@ -284,6 +284,6 @@ func submitPICSAccessTokenRequest(
 		"appids", appids,
 	)
 
-	err = connection.SubmitCMMsg(tokenRequestHeader)
+	err = conn.SubmitCMMsg(tokenRequestHeader)
 	return err
 }
