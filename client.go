@@ -36,7 +36,7 @@ func WithTimeout(t time.Duration) SteamClientOption {
 func NewSteamClient(opts ...SteamClientOption) (*SteamClient, error) {
 	client := &SteamClient{
 		logger:            slog.New(slog.DiscardHandler),
-		connectionTimeout: DefaultDialTimeoutSeconds,
+		connectionTimeout: DefaultDialTimeoutSeconds * time.Second,
 	}
 	for _, opt := range opts {
 		err := opt(client)
