@@ -52,8 +52,14 @@ func NewSteamClient(opts ...SteamClientOption) (*SteamClient, error) {
 	return client, nil
 }
 
-func (c *SteamClient) Connect() error {
-	return c.connection.CMConnect(c.connectionTimeout)
+func (c *SteamClient) Start() error {
+	if err := c.connect(); err != nil {
+		return err
+	}
+	if err := c.startNetLoop(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *SteamClient) Logon(creds LogonCredentials) error {
@@ -91,4 +97,12 @@ func (c *SteamClient) logon(creds *LogonCredentials) error {
 	}
 	err = c.connection.setConnectionInfo(&authInfo)
 	return err
+}
+
+func (c *SteamClient) connect() error {
+	return c.connection.CMConnect(c.connectionTimeout)
+}
+
+func (c *SteamClient) startNetLoop() error {
+	return c.connection.StartNetLoop()
 }
