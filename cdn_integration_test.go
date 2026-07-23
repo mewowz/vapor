@@ -37,3 +37,14 @@ func TestGetDepotDecryptionKey(t *testing.T) {
 		t.Fatalf("GetDepotDecryptionKey got empty/zeroed key")
 	}
 }
+
+func TestGetServersForSteamPipe(t *testing.T) {
+	// Its believed that the cellID that Steam supplies is clamped or
+	// handled in a round-robin due to being unable to find
+	// an "invalid" value for cellID within heuristic testing
+	cellID := uint32(123456789)
+	_, err := GetServersForSteamPipe(cellID, DefaultDialTimeoutSeconds*time.Second)
+	if err != nil {
+		t.Fatalf("GetServersForSteamPipe failed: %v", err)
+	}
+}
