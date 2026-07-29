@@ -66,6 +66,7 @@ var emsgToCMsg = map[EMsg]func() proto.Message{
 	EMsgLBSGetLBEntriesResponse:                              func() proto.Message { return &steamproto.CMsgClientLBSGetLBEntriesResponse{} },
 	EMsgAMGetClanOfficers:                                    func() proto.Message { return &steamproto.CMsgClientAMGetClanOfficers{} },
 	EMsgAMGetClanOfficersResponse:                            func() proto.Message { return &steamproto.CMsgClientAMGetClanOfficersResponse{} },
+	EMsgServiceMethodResponse:                                func() proto.Message { return &steamproto.CContentServerDirectory_GetManifestRequestCode_Response{} },
 	EMsgClientRequestForgottenPasswordEmail:                  func() proto.Message { return &steamproto.CMsgClientRequestForgottenPasswordEmail{} },
 	EMsgClientRequestForgottenPasswordEmailResponse:          func() proto.Message { return &steamproto.CMsgClientRequestForgottenPasswordEmailResponse{} },
 	EMsgClientUpdateUserGameInfo:                             func() proto.Message { return &steamproto.CMsgClientUpdateUserGameInfo{} },
