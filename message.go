@@ -5,10 +5,13 @@ import (
 	"compress/gzip"
 	"encoding/binary"
 	"io"
+	"sync/atomic"
 
 	"github.com/mewowz/vapor/internal/steamproto"
 	"google.golang.org/protobuf/proto"
 )
+
+var currentJobIDSource = atomic.Uint64{}
 
 type HeaderType int
 
@@ -59,7 +62,10 @@ type msgHeaderPB struct {
 }
 
 func NewMsgHeaderPB(emsg EMsg, pbBody proto.Message) (*msgHeaderPB, error) {
-	pbHeader := steamproto.CMsgProtoBufHeader{}
+	jobIDSourceVal := currentJobIDSource.Add(1) - 1
+	pbHeader := steamproto.CMsgProtoBufHeader{
+		JobidSource: proto.Uint64(jobIDSourceVal),
+	}
 	return &msgHeaderPB{
 		EMsg(uint32(emsg) | 0x80000000),
 		&pbHeader,

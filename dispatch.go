@@ -174,7 +174,6 @@ func (d *Dispatcher) writeMessageToCaller(message Message) error {
 		d.logger.Error("blocking on returnChan", "EMsg", message.EMsg())
 		panic("returnChan is never allowed to block")
 	}
-	//delete(d.emsgChanMap, message.EMsg())
 
 	if !listener.retainInMap.Load() {
 		d.removeListener(listener)
