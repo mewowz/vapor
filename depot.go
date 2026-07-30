@@ -52,8 +52,8 @@ func GetManifestRequestCode(
 }
 
 func submitManifestRequestCodeRequest(
-	depotID,
-	appID uint32,
+	appID,
+	depotID uint32,
 	manifestID uint64,
 	branch,
 	branchPasswdHash string,

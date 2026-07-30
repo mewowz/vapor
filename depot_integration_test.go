@@ -76,8 +76,8 @@ func TestGetManifestRequestCode(t *testing.T) {
 		"manifestid", manifestID,
 	)
 	code, err := GetManifestRequestCode(
-		380871,
 		380870,
+		380871,
 		manifestID,
 		"",
 		"",
