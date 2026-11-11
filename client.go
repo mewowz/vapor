@@ -45,8 +45,6 @@ type Client struct {
 	Web *Web
 	// Notifications implements account notifications.
 	Notifications *Notifications
-	// Trading implements trade operations.
-	Trading *Trading
 	// GC dispatches application coordinator traffic.
 	GC *GameCoordinator
 
@@ -84,8 +82,6 @@ func NewClient() *Client {
 	client.RegisterPacketHandler(client.Web)
 	client.Notifications = newNotifications(client)
 	client.RegisterPacketHandler(client.Notifications)
-	client.Trading = &Trading{client: client}
-	client.RegisterPacketHandler(client.Trading)
 	client.GC = newGC(client)
 	client.RegisterPacketHandler(client.GC)
 	return client
