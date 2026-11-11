@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/paralin/go-steam/web"
+	"github.com/mewowz/vapor/web"
 	"github.com/pkg/errors"
 )
 

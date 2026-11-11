@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/paralin/go-steam/protocol"
-	"github.com/paralin/go-steam/protocol/protobuf"
-	"github.com/paralin/go-steam/protocol/steamlang"
+	"github.com/mewowz/vapor/protocol"
+	"github.com/mewowz/vapor/protocol/protobuf"
+	"github.com/mewowz/vapor/protocol/steamlang"
 )
 
 // TestPlayingSessionStateEvents preserves ordered playback revocation and release.

@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/paralin/go-steam/steamid"
+	"github.com/mewowz/vapor/steamid"
 	"github.com/pkg/errors"
 )
 

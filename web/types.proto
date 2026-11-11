@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package steam.web;
 
-option go_package = "github.com/paralin/go-steam/web;web";
+option go_package = "github.com/mewowz/vapor/web;web";
 
 import "github.com/aperturerobotics/protobuf-go-lite/types/known/structpb/struct.proto";
 

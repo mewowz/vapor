@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/aperturerobotics/fastjson"
-	"github.com/paralin/go-steam/netutil"
+	"github.com/mewowz/vapor/netutil"
 	"github.com/pkg/errors"
 )
 

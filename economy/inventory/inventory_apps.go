@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/paralin/go-steam/steamid"
+	"github.com/mewowz/vapor/steamid"
 )
 
 type InventoryApps map[string]*InventoryApp

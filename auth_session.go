@@ -13,7 +13,7 @@ import (
 	"time"
 
 	protobuf "github.com/aperturerobotics/protobuf-go-lite"
-	. "github.com/paralin/go-steam/protocol/protobuf/unified"
+	. "github.com/mewowz/vapor/protocol/protobuf/unified"
 	"github.com/pkg/errors"
 )
 

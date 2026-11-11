@@ -16,10 +16,10 @@ import (
 	"time"
 
 	protobuf "github.com/aperturerobotics/protobuf-go-lite"
-	protocol "github.com/paralin/go-steam/protocol"
-	steampb "github.com/paralin/go-steam/protocol/protobuf"
-	unified "github.com/paralin/go-steam/protocol/protobuf/unified"
-	steamlang "github.com/paralin/go-steam/protocol/steamlang"
+	protocol "github.com/mewowz/vapor/protocol"
+	steampb "github.com/mewowz/vapor/protocol/protobuf"
+	unified "github.com/mewowz/vapor/protocol/protobuf/unified"
+	steamlang "github.com/mewowz/vapor/protocol/steamlang"
 )
 
 // TestLogOnWithAccessTokenWritesCMAccessToken keeps passwords out of token-based logon.

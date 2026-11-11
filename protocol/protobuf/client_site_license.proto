@@ -1,7 +1,7 @@
 syntax = "proto2";
 package protobuf;
 
-import "github.com/paralin/go-steam/protocol/protobuf/base.proto";
+import "github.com/mewowz/vapor/protocol/protobuf/base.proto";
 
 
 message CMsgClientSiteInfo {

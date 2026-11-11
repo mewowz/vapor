@@ -4,7 +4,7 @@ import (
 	"io"
 
 	protobuf "github.com/aperturerobotics/protobuf-go-lite"
-	. "github.com/paralin/go-steam/protocol/steamlang"
+	. "github.com/mewowz/vapor/protocol/steamlang"
 )
 
 // Interface for all messages, typically outgoing. They can also be created by

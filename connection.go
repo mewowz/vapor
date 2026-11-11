@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/paralin/go-steam/cryptoutil"
-	. "github.com/paralin/go-steam/protocol"
+	"github.com/mewowz/vapor/cryptoutil"
+	. "github.com/mewowz/vapor/protocol"
 	"github.com/pkg/errors"
 )
 

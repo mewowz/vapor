@@ -3,8 +3,8 @@ package trade
 import (
 	"time"
 
-	"github.com/paralin/go-steam/economy/inventory"
-	"github.com/paralin/go-steam/trade/tradeapi"
+	"github.com/mewowz/vapor/economy/inventory"
+	"github.com/mewowz/vapor/trade/tradeapi"
 )
 
 type Slot uint

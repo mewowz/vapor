@@ -1,7 +1,7 @@
 package steam
 
 import (
-	. "github.com/paralin/go-steam/protocol/steamlang"
+	. "github.com/mewowz/vapor/protocol/steamlang"
 )
 
 type TradeProposedEvent struct {

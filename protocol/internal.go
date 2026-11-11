@@ -5,7 +5,7 @@ import (
 	"math"
 	"strconv"
 
-	. "github.com/paralin/go-steam/protocol/steamlang"
+	. "github.com/mewowz/vapor/protocol/steamlang"
 )
 
 type JobId uint64

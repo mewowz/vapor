@@ -5,7 +5,7 @@ package steamlang
 import (
 	"encoding/binary"
 	"errors"
-	"github.com/paralin/go-steam/protocol/protobuf"
+	"github.com/mewowz/vapor/protocol/protobuf"
 	"io"
 )
 

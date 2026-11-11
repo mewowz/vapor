@@ -4,8 +4,8 @@ import (
 	"io"
 
 	protobuf "github.com/aperturerobotics/protobuf-go-lite"
-	. "github.com/paralin/go-steam/protocol"
-	. "github.com/paralin/go-steam/protocol/steamlang"
+	. "github.com/mewowz/vapor/protocol"
+	. "github.com/mewowz/vapor/protocol/steamlang"
 )
 
 // IGCMsg carries one coordinator message and its request correlation identities.

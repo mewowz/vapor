@@ -13,12 +13,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/paralin/go-steam/cryptoutil"
-	"github.com/paralin/go-steam/netutil"
-	. "github.com/paralin/go-steam/protocol"
-	. "github.com/paralin/go-steam/protocol/protobuf"
-	. "github.com/paralin/go-steam/protocol/steamlang"
-	"github.com/paralin/go-steam/steamid"
+	"github.com/mewowz/vapor/cryptoutil"
+	"github.com/mewowz/vapor/netutil"
+	. "github.com/mewowz/vapor/protocol"
+	. "github.com/mewowz/vapor/protocol/protobuf"
+	. "github.com/mewowz/vapor/protocol/steamlang"
+	"github.com/mewowz/vapor/steamid"
 	"github.com/pkg/errors"
 )
 

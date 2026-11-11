@@ -1,4 +1,4 @@
-module github.com/paralin/go-steam
+module github.com/mewowz/vapor
 
 go 1.26.0
 
