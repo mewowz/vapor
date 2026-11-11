@@ -4,7 +4,7 @@
   "toolVersions": "protoc=embedded,protobuf-go-lite=v0.16.0,starpc=v0.49.21",
   "packages": {
     "github.com/mewowz/vapor/protocol/protobuf": {
-      "hash": "d50297b3a9fce0c7e3fa0938280fdd670b973999d058b73fb10552a4486a3cfa",
+      "hash": "41f8426bb383b4c631a57eaf451be90d8b0b3e92f306a229e75b97888977128f",
       "generatedFiles": [
         "protocol/protobuf/app_ticket.pb.go",
         "protocol/protobuf/base.pb.go",
@@ -32,7 +32,7 @@
       ]
     },
     "github.com/mewowz/vapor/protocol/protobuf/unified": {
-      "hash": "fe1dacd761751c119758245c41b00230768e72986fab140bd475fd613f426067",
+      "hash": "eb611ecc18a29fb04c5f5386778179121148e482db3451a3c90582f5538d5f4e",
       "generatedFiles": [
         "protocol/protobuf/unified/auth.pb.go",
         "protocol/protobuf/unified/base.pb.go",
@@ -74,7 +74,7 @@
       ]
     },
     "github.com/mewowz/vapor/tf2/protocol/protobuf": {
-      "hash": "e806d283cc281ceca68967c95033586ca90d6f30c0194510b173a450fcbe15b9",
+      "hash": "344195e09a6e07409d895e4d297ec8cac04543a80d5abf057d19f1137480e44e",
       "generatedFiles": [
         "tf2/protocol/protobuf/base.pb.go",
         "tf2/protocol/protobuf/econ.pb.go",
@@ -93,7 +93,7 @@
       ]
     },
     "github.com/mewowz/vapor/web": {
-      "hash": "27785452c17fae83f26df40d20f57a03c2a758b24fc625ffec08e8905d12b7a3",
+      "hash": "af6a9b19850a3df12cc4affaa83fee6a244e593e2e0847befc72d16aefbd93db",
       "generatedFiles": [
         "web/types.pb.go"
       ],
@@ -102,7 +102,7 @@
       ]
     },
     "github.com/mewowz/vapor/web/dota": {
-      "hash": "e8f553e7bf0cd49f7881d2f7122b7c1c880c19043cf1b6177335d5b18ddbbf6c",
+      "hash": "17d928f05c10fad3143474613c2ceb0cd18af424d76adea55ada261df4f37eb3",
       "generatedFiles": [
         "web/dota/types.pb.go"
       ],
