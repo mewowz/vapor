@@ -1,9 +1,9 @@
 syntax = "proto2";
 package unified;
 
-import "github.com/paralin/go-steam/protocol/protobuf/base.proto";
-import "github.com/paralin/go-steam/protocol/protobuf/unified/base.proto";
-import "github.com/paralin/go-steam/protocol/protobuf/unified/enums_productinfo.proto";
+import "github.com/mewowz/vapor/protocol/protobuf/base.proto";
+import "github.com/mewowz/vapor/protocol/protobuf/unified/base.proto";
+import "github.com/mewowz/vapor/protocol/protobuf/unified/enums_productinfo.proto";
 
 
 enum EPublishedFileRevision {

@@ -1,9 +1,9 @@
 syntax = "proto2";
 package unified;
 
-import "github.com/paralin/go-steam/protocol/protobuf/base.proto";
-import "github.com/paralin/go-steam/protocol/protobuf/unified/base.proto";
-import "github.com/paralin/go-steam/protocol/protobuf/unified/offline_ticket.proto";
+import "github.com/mewowz/vapor/protocol/protobuf/base.proto";
+import "github.com/mewowz/vapor/protocol/protobuf/unified/base.proto";
+import "github.com/mewowz/vapor/protocol/protobuf/unified/offline_ticket.proto";
 
 
 message COffline_GetOfflineLogonTicket_Request {

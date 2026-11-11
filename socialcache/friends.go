@@ -4,8 +4,8 @@ import (
 	"errors"
 	"sync"
 
-	. "github.com/paralin/go-steam/protocol/steamlang"
-	"github.com/paralin/go-steam/steamid"
+	. "github.com/mewowz/vapor/protocol/steamlang"
+	"github.com/mewowz/vapor/steamid"
 )
 
 // FriendsList is a thread safe map

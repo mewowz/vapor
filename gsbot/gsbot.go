@@ -23,9 +23,9 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/paralin/go-steam"
-	"github.com/paralin/go-steam/netutil"
-	"github.com/paralin/go-steam/protocol"
+	"github.com/mewowz/vapor"
+	"github.com/mewowz/vapor/netutil"
+	"github.com/mewowz/vapor/protocol"
 )
 
 // Base structure holding common data among GsBot modules.

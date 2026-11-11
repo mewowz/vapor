@@ -4,9 +4,9 @@ import (
 	"bytes"
 
 	protobuf "github.com/aperturerobotics/protobuf-go-lite"
-	. "github.com/paralin/go-steam/protocol"
-	. "github.com/paralin/go-steam/protocol/protobuf"
-	. "github.com/paralin/go-steam/protocol/steamlang"
+	. "github.com/mewowz/vapor/protocol"
+	. "github.com/mewowz/vapor/protocol/protobuf"
+	. "github.com/mewowz/vapor/protocol/steamlang"
 )
 
 // GCPacket retains a parsed coordinator header and undecoded message bytes.

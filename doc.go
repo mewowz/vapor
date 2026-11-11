@@ -16,8 +16,8 @@ You can also find a running example in the `gsbot` package.
 		"context"
 		"log"
 
-		"github.com/paralin/go-steam"
-		"github.com/paralin/go-steam/protocol/steamlang"
+		"github.com/mewowz/vapor"
+		"github.com/mewowz/vapor/protocol/steamlang"
 	)
 
 	func main() {

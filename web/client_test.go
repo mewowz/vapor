@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/paralin/go-steam/steamid"
-	"github.com/paralin/go-steam/web"
+	"github.com/mewowz/vapor/steamid"
+	"github.com/mewowz/vapor/web"
 )
 
 // newClient serves bounded local requests through the public client contract.

@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/paralin/go-steam/netutil"
-	"github.com/paralin/go-steam/protocol"
-	"github.com/paralin/go-steam/protocol/protobuf"
-	"github.com/paralin/go-steam/protocol/steamlang"
+	"github.com/mewowz/vapor/netutil"
+	"github.com/mewowz/vapor/protocol"
+	"github.com/mewowz/vapor/protocol/protobuf"
+	"github.com/mewowz/vapor/protocol/steamlang"
 )
 
 // TestHeartbeatLiveness keeps responsive idle sessions and closes silent TCP peers.

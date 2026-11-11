@@ -1,7 +1,7 @@
 package trade
 
 import (
-	"github.com/paralin/go-steam/trade/tradeapi"
+	"github.com/mewowz/vapor/trade/tradeapi"
 )
 
 type TradeEndedEvent struct {

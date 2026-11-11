@@ -3,10 +3,10 @@ package steam
 import (
 	"bytes"
 
-	. "github.com/paralin/go-steam/protocol"
-	. "github.com/paralin/go-steam/protocol/gamecoordinator"
-	. "github.com/paralin/go-steam/protocol/protobuf"
-	. "github.com/paralin/go-steam/protocol/steamlang"
+	. "github.com/mewowz/vapor/protocol"
+	. "github.com/mewowz/vapor/protocol/gamecoordinator"
+	. "github.com/mewowz/vapor/protocol/protobuf"
+	. "github.com/mewowz/vapor/protocol/steamlang"
 )
 
 // GameCoordinator routes GC envelopes through its Steam client's connection.

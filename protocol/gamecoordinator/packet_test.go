@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/paralin/go-steam/protocol/protobuf"
+	"github.com/mewowz/vapor/protocol/protobuf"
 )
 
 // TestProtobufPacket preserves GC job correlation and replaces reused message data.

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/aperturerobotics/fastjson"
-	"github.com/paralin/go-steam/steamid"
+	"github.com/mewowz/vapor/steamid"
 	"github.com/pkg/errors"
 )
 

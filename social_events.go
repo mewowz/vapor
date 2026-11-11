@@ -3,8 +3,8 @@ package steam
 import (
 	"time"
 
-	. "github.com/paralin/go-steam/protocol/steamlang"
-	"github.com/paralin/go-steam/steamid"
+	. "github.com/mewowz/vapor/protocol/steamlang"
+	"github.com/mewowz/vapor/steamid"
 )
 
 type FriendsListEvent struct{}

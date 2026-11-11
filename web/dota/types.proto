@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package steam.web.dota;
 
-option go_package = "github.com/paralin/go-steam/web/dota;dota";
+option go_package = "github.com/mewowz/vapor/web/dota;dota";
 
 // HistoryResult contains one Dota history page and its access result.
 message HistoryResult {

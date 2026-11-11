@@ -3,7 +3,7 @@ package steam
 import (
 	"context"
 
-	"github.com/paralin/go-steam/protocol/protobuf/unified"
+	"github.com/mewowz/vapor/protocol/protobuf/unified"
 )
 
 // LogOnDetails supplies credentials or a reusable authentication token.

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/paralin/go-steam/web"
-	"github.com/paralin/go-steam/web/dota"
+	"github.com/mewowz/vapor/web"
+	"github.com/mewowz/vapor/web/dota"
 )
 
 // TestHistoryPagination checks date bounds, exact cursors, and bounded collection.

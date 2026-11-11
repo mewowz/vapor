@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	steam "github.com/paralin/go-steam"
-	"github.com/paralin/go-steam/protocol/steamlang"
+	steam "github.com/mewowz/vapor"
+	"github.com/mewowz/vapor/protocol/steamlang"
 )
 
 func TestLiveSteamCredentialSmoke(t *testing.T) {

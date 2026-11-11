@@ -9,7 +9,7 @@ import (
 )
 
 // protoModule supplies generated import paths for normalized Valve schemas.
-const protoModule = "github.com/paralin/go-steam"
+const protoModule = "github.com/mewowz/vapor"
 
 // protoSource binds an upstream schema to its retained Go package.
 type protoSource struct {

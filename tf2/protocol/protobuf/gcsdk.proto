@@ -1,8 +1,8 @@
 syntax = "proto2";
 package tf2;
-option go_package = "github.com/paralin/go-steam/tf2/protocol/protobuf;protobuf";
+option go_package = "github.com/mewowz/vapor/tf2/protocol/protobuf;protobuf";
 
-import "github.com/paralin/go-steam/tf2/protocol/protobuf/steam.proto";
+import "github.com/mewowz/vapor/tf2/protocol/protobuf/steam.proto";
 
 
 enum PartnerAccountType {

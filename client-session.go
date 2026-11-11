@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/paralin/go-steam/protocol"
+	"github.com/mewowz/vapor/protocol"
 )
 
 // clientSession is guarded transport state for one Client connection.
