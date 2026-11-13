@@ -41,8 +41,6 @@ type Client struct {
 	Auth *Auth
 	// Social implements friends and persona operations.
 	Social *Social
-	// Web implements Steam web authentication.
-	Web *Web
 	// Notifications implements account notifications.
 	Notifications *Notifications
 	// GC dispatches application coordinator traffic.
@@ -78,8 +76,6 @@ func NewClient() *Client {
 	client.RegisterPacketHandler(client.Auth)
 	client.Social = newSocial(client)
 	client.RegisterPacketHandler(client.Social)
-	client.Web = &Web{client: client}
-	client.RegisterPacketHandler(client.Web)
 	client.Notifications = newNotifications(client)
 	client.RegisterPacketHandler(client.Notifications)
 	client.GC = newGC(client)
@@ -208,9 +204,11 @@ func (c *Client) connectToBind(ctx, setupCtx context.Context, addr *netutil.Port
 
 	// Bind reader, writer and heartbeat work to this socket's cancellation.
 	runCtx, cancel := context.WithCancel(ctx)
-	session := &clientSession{ctx: runCtx, cancel: cancel, conn: conn,
+	session := &clientSession{
+		ctx: runCtx, cancel: cancel, conn: conn,
 		writes: make(chan IMsg, 5), heartbeat: make(chan time.Duration, 1),
-		readDone: make(chan struct{}), writeDone: make(chan struct{}), disconnectDone: make(chan struct{})}
+		readDone: make(chan struct{}), writeDone: make(chan struct{}), disconnectDone: make(chan struct{}),
+	}
 	c.mutex.Lock()
 	c.session = session
 	c.mutex.Unlock()

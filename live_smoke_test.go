@@ -29,14 +29,12 @@ func TestLiveSteamCredentialSmoke(t *testing.T) {
 	t.Log("Steam connection requested")
 
 	loggedOn := false
-	webSession := false
-	webLoggedOn := false
 	accountInfo := false
 
 	for {
 		select {
 		case <-ctx.Done():
-			t.Fatalf("live smoke timed out: loggedOn=%t webSession=%t webLoggedOn=%t accountInfo=%t", loggedOn, webSession, webLoggedOn, accountInfo)
+			t.Fatalf("live smoke timed out: loggedOn=%t accountInfo=%t", loggedOn, accountInfo)
 		case event := <-client.Events():
 			switch event := event.(type) {
 			case *steam.ConnectedEvent:
@@ -69,23 +67,11 @@ func TestLiveSteamCredentialSmoke(t *testing.T) {
 				t.Fatalf("Steam failure during smoke: result=%v", event.Result)
 			case steam.FatalErrorEvent:
 				t.Fatalf("fatal client error: %v", error(event))
-			case error:
-				t.Fatalf("client error: %v", event)
-			case *steam.WebSessionIdEvent:
-				webSession = true
-				t.Log("web session nonce received; starting web logon")
-				client.Web.LogOn()
-			case *steam.WebLoggedOnEvent:
-				webLoggedOn = true
-				t.Log("web logon succeeded")
-				if client.Web.SteamLogin == "" || client.Web.SteamLoginSecure == "" {
-					t.Fatal("web logon event emitted without SteamLogin cookies")
-				}
-			case steam.WebLogOnErrorEvent:
-				t.Fatalf("web logon failed: %v", error(event))
 			case *steam.AccountInfoEvent:
 				accountInfo = true
 				t.Log("account info received")
+			case error:
+				t.Fatalf("client error: %v", event)
 			}
 			if loggedOn && accountInfo {
 				t.Log("core live login milestones reached; setting persona online")

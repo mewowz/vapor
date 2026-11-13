@@ -64,8 +64,8 @@ func TestLogOnWithAccessTokenWritesCMAccessToken(t *testing.T) {
 	}
 }
 
-// TestLogOnResponseRequestsWebAPINonce requests web authentication after accepted CM logon.
-func TestLogOnResponseRequestsWebAPINonce(t *testing.T) {
+// TestLogOnResponseEmitsLoggedOnWithoutWebNonce checks that an accepted logon emits LoggedOnEvent and sends nothing back
+func TestLogOnResponseEmitsLoggedOnWithoutWebNonce(t *testing.T) {
 	// Deliver an accepted logon response to the real authentication handler.
 	client := &Client{
 		events:  make(chan any, 1),
@@ -74,7 +74,7 @@ func TestLogOnResponseRequestsWebAPINonce(t *testing.T) {
 	auth := &Auth{client: client}
 	auth.handleLogOnResponse(clientLogOnResponsePacket(t))
 
-	// Publish authenticated state before requesting the web nonce.
+	// An accepted logon publishes LoggedOnEvent
 	select {
 	case event := <-client.events:
 		if _, ok := event.(*LoggedOnEvent); !ok {
@@ -84,21 +84,12 @@ func TestLogOnResponseRequestsWebAPINonce(t *testing.T) {
 		t.Fatal("logged-on event was not emitted")
 	}
 
-	// The outgoing request uses the dedicated web-authentication message.
+	// vapor doesn't request the WebAPI nonce, so the accepted logon must not write anything back
 	select {
 	case msg := <-client.session.writes:
-		clientMsg, ok := msg.(*protocol.ClientMsgProtobuf)
-		if !ok {
-			t.Fatalf("message = %T", msg)
-		}
-		if clientMsg.GetMsgType() != steamlang.EMsg_ClientRequestWebAPIAuthenticateUserNonce {
-			t.Fatalf("message type = %v", clientMsg.GetMsgType())
-		}
-		if _, ok := clientMsg.Body.(*steampb.CMsgClientRequestWebAPIAuthenticateUserNonce); !ok {
-			t.Fatalf("body = %T", clientMsg.Body)
-		}
+		t.Fatalf("unexpected write: %v", msg.GetMsgType())
 	default:
-		t.Fatal("web api nonce request was not written")
+		// Nothing written, as expected
 	}
 }
 

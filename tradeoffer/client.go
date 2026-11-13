@@ -24,13 +24,13 @@ type Client struct {
 	sessionId string
 }
 
-func NewClient(key APIKey, sessionId, steamLogin, steamLoginSecure string) *Client {
+func NewClient(key APIKey, sessionId, steamLoginSecure string) *Client {
 	c := &Client{
 		new(http.Client),
 		key,
 		sessionId,
 	}
-	community.SetCookies(c.client, sessionId, steamLogin, steamLoginSecure)
+	community.SetCookies(c.client, sessionId, steamLoginSecure)
 	return c
 }
 
@@ -222,7 +222,6 @@ func (c *Client) Create(other steamid.SteamId, accessToken *string, myItems, the
 
 			referer = "https://steamcommunity.com/tradeoffer/new/?partner=" + strconv.FormatUint(uint64(other.GetAccountId()), 10) + "&token=" + *accessToken
 		} else {
-
 			referer = "https://steamcommunity.com/tradeoffer/new/?partner=" + strconv.FormatUint(uint64(other.GetAccountId()), 10)
 		}
 	}
@@ -360,7 +359,8 @@ func (c *Client) GetOfferWithRetry(offerId uint64, retryCount int, retryDelay ti
 		func() (err error) {
 			res, err = c.GetOffer(offerId)
 			return err
-		}, retryCount, retryDelay)
+		}, retryCount, retryDelay,
+	)
 }
 
 func (c *Client) GetOffersWithRetry(getSent bool, getReceived bool, getDescriptions bool, activeOnly bool, historicalOnly bool, timeHistoricalCutoff *uint32, retryCount int, retryDelay time.Duration) (*TradeOffersResult, error) {
@@ -369,28 +369,32 @@ func (c *Client) GetOffersWithRetry(getSent bool, getReceived bool, getDescripti
 		func() (err error) {
 			res, err = c.GetOffers(getSent, getReceived, getDescriptions, activeOnly, historicalOnly, timeHistoricalCutoff)
 			return err
-		}, retryCount, retryDelay)
+		}, retryCount, retryDelay,
+	)
 }
 
 func (c *Client) DeclineWithRetry(offerId uint64, retryCount int, retryDelay time.Duration) error {
 	return withRetry(
 		func() error {
 			return c.Decline(offerId)
-		}, retryCount, retryDelay)
+		}, retryCount, retryDelay,
+	)
 }
 
 func (c *Client) CancelWithRetry(offerId uint64, retryCount int, retryDelay time.Duration) error {
 	return withRetry(
 		func() error {
 			return c.Cancel(offerId)
-		}, retryCount, retryDelay)
+		}, retryCount, retryDelay,
+	)
 }
 
 func (c *Client) AcceptWithRetry(offerId uint64, retryCount int, retryDelay time.Duration) error {
 	return withRetry(
 		func() error {
 			return c.Accept(offerId)
-		}, retryCount, retryDelay)
+		}, retryCount, retryDelay,
+	)
 }
 
 func (c *Client) CreateWithRetry(other steamid.SteamId, accessToken *string, myItems, theirItems []TradeItem, counteredOfferId *uint64, message string, retryCount int, retryDelay time.Duration) (uint64, error) {
@@ -399,7 +403,8 @@ func (c *Client) CreateWithRetry(other steamid.SteamId, accessToken *string, myI
 		func() (err error) {
 			res, err = c.Create(other, accessToken, myItems, theirItems, counteredOfferId, message)
 			return err
-		}, retryCount, retryDelay)
+		}, retryCount, retryDelay,
+	)
 }
 
 func (c *Client) GetOwnInventoryWithRetry(contextId uint64, appId uint32, retryCount int, retryDelay time.Duration) (*inventory.Inventory, error) {
@@ -408,7 +413,8 @@ func (c *Client) GetOwnInventoryWithRetry(contextId uint64, appId uint32, retryC
 		func() (err error) {
 			res, err = c.GetOwnInventory(contextId, appId)
 			return err
-		}, retryCount, retryDelay)
+		}, retryCount, retryDelay,
+	)
 }
 
 func (c *Client) GetPartnerInventoryWithRetry(other steamid.SteamId, contextId uint64, appId uint32, offerId *uint64, retryCount int, retryDelay time.Duration) (*inventory.Inventory, error) {
@@ -417,7 +423,8 @@ func (c *Client) GetPartnerInventoryWithRetry(other steamid.SteamId, contextId u
 		func() (err error) {
 			res, err = c.GetPartnerInventory(other, contextId, appId, offerId)
 			return err
-		}, retryCount, retryDelay)
+		}, retryCount, retryDelay,
+	)
 }
 
 func (c *Client) GetTradeReceiptWithRetry(tradeId uint64, retryCount int, retryDelay time.Duration) ([]*TradeReceiptItem, error) {
@@ -426,7 +433,8 @@ func (c *Client) GetTradeReceiptWithRetry(tradeId uint64, retryCount int, retryD
 		func() (err error) {
 			res, err = c.GetTradeReceipt(tradeId)
 			return err
-		}, retryCount, retryDelay)
+		}, retryCount, retryDelay,
+	)
 }
 
 func withRetry(f func() error, retryCount int, retryDelay time.Duration) error {
