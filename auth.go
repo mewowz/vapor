@@ -90,7 +90,6 @@ func (a *Auth) HandlePacket(packet *Packet) {
 	case EMsg_ClientAccountInfo:
 		a.handleAccountInfo(packet)
 	case EMsg_ClientWalletInfoUpdate:
-	case EMsg_ClientRequestWebAPIAuthenticateUserNonceResponse:
 	case EMsg_ClientMarketingMessageUpdate:
 	}
 }
@@ -119,7 +118,6 @@ func (a *Auth) handleLogOnResponse(packet *Packet) {
 			ClientSteamId:  steamid.SteamId(body.GetClientSuppliedSteamid()),
 			Body:           body,
 		})
-		a.client.Write(NewClientMsgProtobuf(EMsg_ClientRequestWebAPIAuthenticateUserNonce, new(CMsgClientRequestWebAPIAuthenticateUserNonce)))
 	} else if result == EResult_Fail || result == EResult_ServiceUnavailable || result == EResult_TryAnotherCM {
 		// some error on Steam's side, we'll get an EOF later
 		a.client.Emit(&SteamFailureEvent{
