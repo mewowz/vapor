@@ -333,7 +333,7 @@ func (c *Client) GetPartnerEscrowDuration(other steamid.SteamId, accessToken *st
 
 // Get duration of escrow in days. Call this after receiving a trade offer
 func (c *Client) GetOfferEscrowDuration(offerId uint64) (*EscrowDuration, error) {
-	return c.getEscrowDuration("http://steamcommunity.com/tradeoffer/" + strconv.FormatUint(offerId, 10))
+	return c.getEscrowDuration("https://steamcommunity.com/tradeoffer/" + strconv.FormatUint(offerId, 10))
 }
 
 func (c *Client) getEscrowDuration(queryUrl string) (*EscrowDuration, error) {

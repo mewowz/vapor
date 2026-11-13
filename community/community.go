@@ -19,12 +19,14 @@ func SetCookies(client *http.Client, sessionId, steamLoginSecure string) {
 	client.Jar.SetCookies(base, []*http.Cookie{
 		// It seems that, for some reason, Steam tries to URL-decode the cookie.
 		{
-			Name:  "sessionid",
-			Value: url.QueryEscape(sessionId),
+			Name:   "sessionid",
+			Value:  url.QueryEscape(sessionId),
+			Secure: true,
 		},
 		{
-			Name:  "steamLoginSecure",
-			Value: steamLoginSecure,
+			Name:   "steamLoginSecure",
+			Value:  steamLoginSecure,
+			Secure: true,
 		},
 	})
 }
