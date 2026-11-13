@@ -8,7 +8,7 @@ import (
 
 func GetPartialOwnInventory(client *http.Client, contextId uint64, appId uint32, start *uint) (*PartialInventory, error) {
 	// TODO: the "trading" parameter can be left off to return non-tradable items too
-	url := fmt.Sprintf("http://steamcommunity.com/my/inventory/json/%d/%d?trading=1", appId, contextId)
+	url := fmt.Sprintf("https://steamcommunity.com/my/inventory/json/%d/%d?trading=1", appId, contextId)
 	if start != nil {
 		url += "&start=" + strconv.FormatUint(uint64(*start), 10)
 	}
