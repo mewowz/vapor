@@ -120,7 +120,7 @@ func TestGetAccessTokenViaCredentialsReturnsRefreshToken(t *testing.T) {
 			if !req.GetRememberLogin() {
 				t.Fatal("remember login is false")
 			}
-			if req.GetDeviceFriendlyName() != "go-steam" {
+			if req.GetDeviceFriendlyName() != "vapor" {
 				t.Fatalf("device friendly name = %q", req.GetDeviceFriendlyName())
 			}
 			return &unified.CAuthentication_BeginAuthSessionViaCredentials_Response{

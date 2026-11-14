@@ -42,7 +42,7 @@ func TestLiveSteamCredentialSmoke(t *testing.T) {
 				if err := client.Auth.LogOn(ctx, &steam.LogOnDetails{
 					Username:           username,
 					Password:           password,
-					DeviceFriendlyName: "go-steam-live-smoke",
+					DeviceFriendlyName: "vapor-live-smoke",
 					AuthCode:           os.Getenv("STEAM_SMOKE_AUTH_CODE"),
 					TwoFactorCode:      os.Getenv("STEAM_SMOKE_TFA_CODE"),
 				}); err != nil {

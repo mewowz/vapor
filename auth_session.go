@@ -52,7 +52,7 @@ func (a *Auth) getAccessTokenViaCredentials(ctx context.Context, details *LogOnD
 	persistence := ESessionPersistence_k_ESessionPersistence_Persistent
 	deviceName := details.DeviceFriendlyName
 	if deviceName == "" {
-		deviceName = "go-steam"
+		deviceName = "vapor"
 	}
 	beginResp := new(CAuthentication_BeginAuthSessionViaCredentials_Response)
 	if err := a.authServiceCall(ctx, http.MethodPost, "BeginAuthSessionViaCredentials", &CAuthentication_BeginAuthSessionViaCredentials_Request{
