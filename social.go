@@ -126,9 +126,9 @@ func (s *Social) RemoveFriend(id steamid.SteamId) {
 
 // IgnoreFriend ignores or unignores a friend on Steam
 func (s *Social) IgnoreFriend(id steamid.SteamId, setIgnore bool) {
-	ignore := uint8(1) //True
+	ignore := uint8(1) // True
 	if !setIgnore {
-		ignore = uint8(0) //False
+		ignore = uint8(0) // False
 	}
 	s.client.Write(NewClientMsg(&MsgClientSetIgnoreFriend{
 		MySteamId:     SteamId(s.client.SteamId()),
@@ -269,7 +269,6 @@ func (s *Social) handleFriendsList(packet *Packet) {
 					SteamId:      steamID,
 					Relationship: rel,
 				})
-
 			}
 			if list.GetBincremental() {
 				s.client.Emit(&GroupStateEvent{steamid.SteamId(steamID), rel})
@@ -283,7 +282,6 @@ func (s *Social) handleFriendsList(packet *Packet) {
 					SteamId:      steamID,
 					Relationship: rel,
 				})
-
 			}
 			if list.GetBincremental() {
 				s.client.Emit(&FriendStateEvent{steamID, rel})
@@ -306,7 +304,7 @@ func (s *Social) handlePersonaState(packet *Packet) {
 	flags := EClientPersonaStateFlag(list.GetStatusFlags())
 	for _, friend := range list.GetFriends() {
 		id := steamid.SteamId(friend.GetFriendid())
-		if id == s.client.SteamId() { //this is our client id
+		if id == s.client.SteamId() { // this is our client id
 			s.mutex.Lock()
 			if friend.GetPlayerName() != "" {
 				s.name = friend.GetPlayerName()
@@ -487,7 +485,7 @@ func (s *Social) handleChatEnter(packet *Packet) {
 	s.Chats.Add(socialcache.Chat{SteamId: chatID, GroupId: clanID})
 	for i := 0; i < int(count); i++ {
 		id, chatPerm, clanPerm := readChatMember(reader)
-		_, _ = ReadBytes(reader, 6) //No idea what this is
+		_, _ = ReadBytes(reader, 6) // No idea what this is
 		s.Chats.AddChatMember(chatID, socialcache.ChatMember{
 			SteamId:         steamid.SteamId(id),
 			ChatPermissions: chatPerm,
@@ -546,13 +544,13 @@ func (s *Social) handleChatMemberInfo(packet *Packet) {
 func readChatMember(r io.Reader) (SteamId, EChatPermission, EClanPermission) {
 	_, _ = ReadString(r) // MessageObject
 	_, _ = ReadByte(r)   // 7
-	_, _ = ReadString(r) //steamid
+	_, _ = ReadString(r) // steamid
 	id, _ := ReadUint64(r)
 	_, _ = ReadByte(r)   // 2
-	_, _ = ReadString(r) //Permissions
+	_, _ = ReadString(r) // Permissions
 	chat, _ := ReadInt32(r)
 	_, _ = ReadByte(r)   // 2
-	_, _ = ReadString(r) //Details
+	_, _ = ReadString(r) // Details
 	clan, _ := ReadInt32(r)
 	return SteamId(id), EChatPermission(chat), EClanPermission(clan)
 }

@@ -4,7 +4,7 @@ Provides access to TF2 Game Coordinator functionality.
 package tf2
 
 import (
-	"github.com/mewowz/vapor"
+	steam "github.com/mewowz/vapor"
 	. "github.com/mewowz/vapor/protocol/gamecoordinator"
 	. "github.com/mewowz/vapor/tf2/protocol"
 	"github.com/mewowz/vapor/tf2/protocol/protobuf"
@@ -35,7 +35,7 @@ func (t *TF2) SetPlaying(playing bool) {
 
 func (t *TF2) SetItemPosition(itemId, position uint64) {
 	t.client.GC.Write(NewGCMsg(AppId, uint32(protobuf.EGCItemMsg_k_EMsgGCSetSingleItemPosition), &MsgGCSetItemPosition{
-		itemId, position,
+		AssetId: itemId, Position: position,
 	}))
 }
 
@@ -48,12 +48,12 @@ func (t *TF2) CraftItems(items []uint64, recipe int16) {
 }
 
 func (t *TF2) DeleteItem(itemId uint64) {
-	t.client.GC.Write(NewGCMsg(AppId, uint32(protobuf.EGCItemMsg_k_EMsgGCDelete), &MsgGCDeleteItem{itemId}))
+	t.client.GC.Write(NewGCMsg(AppId, uint32(protobuf.EGCItemMsg_k_EMsgGCDelete), &MsgGCDeleteItem{ItemId: itemId}))
 }
 
 func (t *TF2) NameItem(toolId, target uint64, name string) {
 	t.client.GC.Write(NewGCMsg(AppId, uint32(protobuf.EGCItemMsg_k_EMsgGCNameItem), &MsgGCNameItem{
-		toolId, target, name,
+		Tool: toolId, Target: target, Name: name,
 	}))
 }
 

@@ -79,7 +79,7 @@ func updateProtoSources(repoRoot string) error {
 		filepath.Join(repoRoot, "generator", "extra"),
 		filepath.Join(repoRoot, "tf2", "protocol", "protobuf"),
 	} {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
 	}
@@ -121,7 +121,7 @@ func updateProtoSources(repoRoot string) error {
 			out = strings.Replace(out, "package tf2;", "package tf2;\noption go_package = \""+protoModule+"/tf2/protocol/protobuf;protobuf\";", 1)
 		}
 		outPath := filepath.Join(repoRoot, source.outputPath)
-		if err := os.WriteFile(outPath, []byte(out), 0644); err != nil {
+		if err := os.WriteFile(outPath, []byte(out), 0o644); err != nil {
 			return err
 		}
 		fmt.Println("wrote " + source.outputPath)

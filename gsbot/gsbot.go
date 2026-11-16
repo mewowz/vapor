@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/mewowz/vapor"
+	steam "github.com/mewowz/vapor"
 	"github.com/mewowz/vapor/netutil"
 	"github.com/mewowz/vapor/protocol"
 )
@@ -107,7 +107,7 @@ func (s *ServerList) HandleEvent(event any) {
 		if err != nil {
 			panic(err)
 		}
-		err = ioutil.WriteFile(s.listPath, d, 0666)
+		err = ioutil.WriteFile(s.listPath, d, 0o666)
 		if err != nil {
 			panic(err)
 		}
@@ -145,11 +145,11 @@ type Debug struct {
 
 func NewDebug(bot *GsBot, base string) (*Debug, error) {
 	base = path.Join(base, fmt.Sprint(time.Now().Unix()))
-	err := os.MkdirAll(path.Join(base, "events"), 0700)
+	err := os.MkdirAll(path.Join(base, "events"), 0o700)
 	if err != nil {
 		return nil, err
 	}
-	err = os.MkdirAll(path.Join(base, "packets"), 0700)
+	err = os.MkdirAll(path.Join(base, "packets"), 0o700)
 	if err != nil {
 		return nil, err
 	}
@@ -165,12 +165,12 @@ func (d *Debug) HandlePacket(packet *protocol.Packet) {
 	name := path.Join(d.base, "packets", fmt.Sprintf("%d_%d_%s", time.Now().Unix(), d.packetId, packet.EMsg))
 
 	text := packet.String() + "\n\n" + hex.Dump(packet.Data)
-	err := ioutil.WriteFile(name+".txt", []byte(text), 0666)
+	err := ioutil.WriteFile(name+".txt", []byte(text), 0o666)
 	if err != nil {
 		panic(err)
 	}
 
-	err = ioutil.WriteFile(name+".bin", packet.Data, 0666)
+	err = ioutil.WriteFile(name+".bin", packet.Data, 0o666)
 	if err != nil {
 		panic(err)
 	}
@@ -179,7 +179,7 @@ func (d *Debug) HandlePacket(packet *protocol.Packet) {
 func (d *Debug) HandleEvent(event any) {
 	d.eventId++
 	name := fmt.Sprintf("%d_%d_%s.txt", time.Now().Unix(), d.eventId, name(event))
-	err := ioutil.WriteFile(path.Join(d.base, "events", name), []byte(spew.Sdump(event)), 0666)
+	err := ioutil.WriteFile(path.Join(d.base, "events", name), []byte(spew.Sdump(event)), 0o666)
 	if err != nil {
 		panic(err)
 	}

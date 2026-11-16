@@ -29,7 +29,7 @@ func (list *ChatsList) Add(chat Chat) {
 	list.mutex.Lock()
 	defer list.mutex.Unlock()
 	_, exists := list.byId[chat.SteamId]
-	if !exists { //make sure this doesnt already exist
+	if !exists { // make sure this doesnt already exist
 		list.byId[chat.SteamId] = &chat
 	}
 }
@@ -46,11 +46,11 @@ func (list *ChatsList) AddChatMember(id steamid.SteamId, member ChatMember) {
 	list.mutex.Lock()
 	defer list.mutex.Unlock()
 	chat := list.byId[id]
-	if chat == nil { //Chat doesn't exist
+	if chat == nil { // Chat doesn't exist
 		chat = &Chat{SteamId: id}
 		list.byId[id] = chat
 	}
-	if chat.ChatMembers == nil { //New chat
+	if chat.ChatMembers == nil { // New chat
 		chat.ChatMembers = make(map[steamid.SteamId]ChatMember)
 	}
 	chat.ChatMembers[member.SteamId] = member
@@ -61,10 +61,10 @@ func (list *ChatsList) RemoveChatMember(id steamid.SteamId, member steamid.Steam
 	list.mutex.Lock()
 	defer list.mutex.Unlock()
 	chat := list.byId[id]
-	if chat == nil { //Chat doesn't exist
+	if chat == nil { // Chat doesn't exist
 		return
 	}
-	if chat.ChatMembers == nil { //New chat
+	if chat.ChatMembers == nil { // New chat
 		return
 	}
 	delete(chat.ChatMembers, member)
