@@ -25,6 +25,11 @@ jobs:
           go-version: ${{ matrix.go }}
       - name: Vendor Go
         run: go mod vendor
+      - name: Format
+        run: |
+          go install mvdan.cc/gofumpt@v0.10.0
+          out=$(gofumpt -l $(git ls-files '*.go' | xargs grep -L '^// Code generated'))
+          if [ -n "$out" ]; then echo "needs gofumpt:"; echo "$out"; exit 1; fi
       - name: Vet
         run: go vet ./...
       - name: Test
