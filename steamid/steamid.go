@@ -43,7 +43,7 @@ func NewId(id string) (SteamId, error) {
 		id = strings.Replace(id, "STEAM_", "", -1) // remove STEAM_
 		splitid := strings.Split(id, ":")          // split 0:1:00000000 into 0 1 00000000
 		universe, _ := strconv.ParseInt(splitid[0], 10, 32)
-		if universe == 0 { //EUniverse_Invalid
+		if universe == 0 { // EUniverse_Invalid
 			universe = int64(steamlang.EUniverse_Public)
 		}
 		authServer, _ := strconv.ParseUint(splitid[1], 10, 32)
@@ -146,18 +146,18 @@ func (s SteamId) SetAccountUniverse(universe int32) SteamId {
 
 // used to fix the Clan SteamId to a Chat SteamId
 func (s SteamId) ClanToChat() SteamId {
-	if s.GetAccountType() == steamlang.EAccountType(7) { //EAccountType_Clan
+	if s.GetAccountType() == steamlang.EAccountType(7) { // EAccountType_Clan
 		s = s.SetAccountInstance(uint32(ChatInstanceFlagClan))
-		s = s.SetAccountType(steamlang.EAccountType_Chat) //EAccountType_Chat
+		s = s.SetAccountType(steamlang.EAccountType_Chat) // EAccountType_Chat
 	}
 	return s
 }
 
 // used to fix the Chat SteamId to a Clan SteamId
 func (s SteamId) ChatToClan() SteamId {
-	if s.GetAccountType() == steamlang.EAccountType_Chat { //EAccountType_Chat
+	if s.GetAccountType() == steamlang.EAccountType_Chat { // EAccountType_Chat
 		s = s.SetAccountInstance(0)
-		s = s.SetAccountType(steamlang.EAccountType_Clan) //EAccountType_Clan
+		s = s.SetAccountType(steamlang.EAccountType_Clan) // EAccountType_Clan
 	}
 	return s
 }

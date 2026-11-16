@@ -29,7 +29,7 @@ func (list *GroupsList) Add(group Group) {
 	list.mutex.Lock()
 	defer list.mutex.Unlock()
 	_, exists := list.byId[group.SteamId]
-	if !exists { //make sure this doesnt already exist
+	if !exists { // make sure this doesnt already exist
 		list.byId[group.SteamId] = &group
 	}
 }

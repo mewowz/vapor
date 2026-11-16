@@ -4,7 +4,7 @@ Provides access to TF2 Game Coordinator functionality.
 package tf2
 
 import (
-	"github.com/mewowz/vapor"
+	steam "github.com/mewowz/vapor"
 	. "github.com/mewowz/vapor/protocol/gamecoordinator"
 	. "github.com/mewowz/vapor/tf2/protocol"
 	"github.com/mewowz/vapor/tf2/protocol/protobuf"

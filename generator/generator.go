@@ -88,7 +88,8 @@ func removeGeneratedGo(root string) error {
 
 // buildProto generates lite codecs from checked-in schemas without source refresh.
 func buildProto(ctx context.Context, repoRoot string) error {
-	return run(ctx, repoRoot,
+	return run(
+		ctx, repoRoot,
 		"go", "run", "github.com/aperturerobotics/common/cmd/aptre@v0.35.2",
 		"generate", "--language", "go", "--rpc", "none",
 		"--targets", "protocol/protobuf/*.proto",

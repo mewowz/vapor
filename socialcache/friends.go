@@ -29,7 +29,7 @@ func (list *FriendsList) Add(friend Friend) {
 	list.mutex.Lock()
 	defer list.mutex.Unlock()
 	_, exists := list.byId[steamid.SteamId(friend.SteamId)]
-	if !exists { //make sure this doesnt already exist
+	if !exists { // make sure this doesnt already exist
 		list.byId[steamid.SteamId(friend.SteamId)] = &friend
 	}
 }

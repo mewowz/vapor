@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mewowz/vapor"
+	steam "github.com/mewowz/vapor"
 	"github.com/mewowz/vapor/gsbot"
 	"github.com/mewowz/vapor/protocol/steamlang"
 )
