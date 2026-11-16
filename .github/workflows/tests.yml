@@ -2,12 +2,11 @@ name: Tests
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
   pull_request:
     # The branches below must be a subset of the branches above
-    branches: [ "master" ]
+    branches: [ "main" ]
 
-# Builds images for target boards.
 permissions:
   contents: read
 
@@ -26,11 +25,9 @@ jobs:
           go-version: ${{ matrix.go }}
       - name: Vendor Go
         run: go mod vendor
-      #- name: Lint Go
-      #  run: make lint
-      # - name: Lint Go
-      #   run: cd ~ && go install -v github.com/golangci/golangci-lint/cmd/golangci-lint@latest && cd - && golangci-lint run --timeout=10m ./...
-      # - name: Test Go
-      #   run: make test
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race ./...
       - name: Build Go
         run: go build -v ./...
